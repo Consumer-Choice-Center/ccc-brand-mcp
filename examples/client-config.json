@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ccc-brand": {
+      "command": "node",
+      "args": ["/absolute/path/to/CCC Branding/dist/server.js"]
+    }
+  }
+}

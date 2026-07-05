@@ -1,0 +1,236 @@
+{
+  "brand": {
+    "name": "Consumer Choice Center",
+    "shortName": "CCC",
+    "tagline": "YOUR CHOICE OUR FIGHT",
+    "source": "CCC_Brand_Guide_2026_5.pdf",
+    "positioning": {
+      "archetype": "Outlaw + Sage",
+      "voice": [
+        "bold",
+        "provocative",
+        "non-conformist",
+        "audacious",
+        "evidence-led",
+        "trailblazing"
+      ],
+      "audienceAppeal": "People who feel not represented, restricted, and ready for change."
+    }
+  },
+  "colors": {
+    "primary": {
+      "autumnOrange": "#E95C1F",
+      "leila": "#22264E"
+    },
+    "secondary": {
+      "baseWhite": "#FFFFFF",
+      "warmWhite": "#FFF7EF",
+      "coolMist": "#E7ECF4",
+      "slateBlue": "#6F789B"
+    },
+    "tertiary": {
+      "brickCoral": "#B9473A",
+      "marigold": "#F4B544",
+      "sandBeige": "#CDB79F",
+      "deepTeal": "#1E6F78",
+      "brightTeal": "#00A6A6",
+      "softMint": "#9BD8C7"
+    }
+  },
+  "typography": {
+    "headlines": [
+      {
+        "family": "Montserrat",
+        "weight": "Bold",
+        "usage": "Headlines"
+      }
+    ],
+    "socialMediaH1": [
+      {
+        "family": "Anton",
+        "weight": "Regular",
+        "usage": "Large social H1"
+      }
+    ],
+    "subheads": [
+      {
+        "family": "Montserrat",
+        "weight": "Medium",
+        "usage": "Subheads"
+      },
+      {
+        "family": "Montserrat",
+        "weight": "Medium Italic",
+        "usage": "Subheads"
+      },
+      {
+        "family": "Hind",
+        "weight": "Medium",
+        "usage": "Subheads"
+      }
+    ],
+    "body": [
+      {
+        "family": "Montserrat",
+        "weight": "Regular",
+        "usage": "Body"
+      },
+      {
+        "family": "Montserrat",
+        "weight": "Italic",
+        "usage": "Body emphasis"
+      }
+    ],
+    "technical": [
+      {
+        "family": "DM Mono",
+        "weight": "Regular",
+        "usage": "Technical labels, chips, dates, sources"
+      }
+    ],
+    "forbidden": [
+      "Do not introduce unlisted font families.",
+      "Do not use generic default typefaces as final output.",
+      "Do not substitute fonts without a validation warning."
+    ]
+  },
+  "logo": {
+    "approvedFormats": [
+      "wide logo",
+      "icon"
+    ],
+    "usage": [
+      "Use official CCC logo assets only.",
+      "Use brand colors or in-paper colors depending on the template.",
+      "Do not redraw, distort, recolor outside the palette, or invent alternate marks."
+    ]
+  },
+  "social": {
+    "canonicalSize": {
+      "widthPx": 1080,
+      "heightPx": 1080
+    },
+    "commonPatterns": [
+      "Policy alert",
+      "Consumer voice",
+      "Statistic card",
+      "Bad vs good contrast",
+      "Question or CTA card"
+    ],
+    "requiredFooter": "consumerchoicecenter.org",
+    "guidance": [
+      "Use high-contrast primary brand colors.",
+      "Keep the message short and direct.",
+      "Use geometric blocks, bands, and sharp-edged shapes.",
+      "Do not create off-palette gradients or decorative effects."
+    ]
+  },
+  "video": {
+    "subtitles": {
+      "fontFamily": "Montserrat",
+      "fontWeight": "Bold",
+      "fontSizePt": {
+        "min": 55,
+        "max": 60
+      },
+      "position": "Close to bottom third of the title safe action area.",
+      "horizontal": {
+        "charactersPerLine": 35,
+        "layout": "one line",
+        "minimumDurationSecondsPerLine": 1.8,
+        "safeArea": "Fit inside 4x3 center cut title safe area."
+      },
+      "vertical": {
+        "charactersPerLine": 20,
+        "layout": "one line",
+        "minimumDurationSecondsPerLine": 1.5,
+        "safeArea": "Fit inside title safe area."
+      }
+    },
+    "watermarks": {
+      "recommended": true,
+      "whiteOpacity": 0.15,
+      "blackOpacity": 0.2,
+      "placement": "Between action and title safe areas.",
+      "animation": "Animate in only, not out."
+    },
+    "endingAnimation": {
+      "insertAtBeforeEndTimecode": "0:00:01:03",
+      "ctaAlignment": "Vertically center aligned."
+    }
+  },
+  "policyOutputs": {
+    "policyPrimer": {
+      "length": "5-10 pages",
+      "audience": "Media, academic circles, regulators, expert policy staff",
+      "cover": {
+        "logo": "Wide logo, in paper colors, positioned by cover layout",
+        "date": "Month / Year",
+        "titleFont": "Montserrat Bold",
+        "subtitleFont": "Montserrat Regular or Hind",
+        "authorFont": "Montserrat Regular or Hind",
+        "design": "Vector geometric shapes with topic reference; photo usage permitted"
+      },
+      "body": {
+        "toc": "Required for documents of 8 pages or more; include H1 and H2 only.",
+        "format": "A4 default or US Letter when specifically requested",
+        "margins": "Top/bottom 16mm; left/right 25.4mm",
+        "bodyFont": "Montserrat Regular, 11-12pt, 17-18pt leading",
+        "pageNumber": "Bottom middle or right aligned"
+      }
+    },
+    "policyNote": {
+      "length": "No more than 4 pages",
+      "audience": "Lawmakers, novice policy staff, brief for journalists",
+      "cover": {
+        "logo": "Wide logo, standard brand colors, center top",
+        "date": "Month / Year",
+        "palette": "Primary colors with auxiliary secondary colors",
+        "design": "Clean simple standard template with minimal topic reference"
+      },
+      "body": {
+        "format": "A4 default or US Letter when specifically requested",
+        "printVersion": "Create a print version with 3mm bleed",
+        "margins": "Top/bottom 16mm; left/right 25.4mm",
+        "visualElements": "Header 18pt Montserrat Bold; body 16pt Montserrat Medium; under 300 characters full-width and under 150 half-width",
+        "bodyFont": "Montserrat Regular, 11-12pt, 17-18pt leading",
+        "pageNumber": "Bottom right aligned"
+      }
+    },
+    "policyMemo": {
+      "length": "No more than 1 page",
+      "audience": "Committee staff and policymakers",
+      "format": "A4 default or US Letter when specifically requested",
+      "margins": "Top/bottom 16mm; left/right 12.5mm",
+      "date": "Month / Day / Year",
+      "visualElements": "No visual elements",
+      "typeScale": {
+        "documentHeader": "Montserrat Bold 33pt",
+        "documentSubheader": "Montserrat Bold 22pt",
+        "subtitle": "Montserrat Regular 15pt",
+        "sectionHeader": "Montserrat Bold 14pt",
+        "body": "Montserrat Regular 12pt with 18pt leading; bold for highlights"
+      },
+      "pageNumber": "Not specified; keep template standard"
+    },
+    "coalitionLetter": {
+      "format": "Google Doc template with applied letterhead watermark",
+      "footerAddresses": [
+        "Washington, DC",
+        "London, UK",
+        "Ottawa, Ontario",
+        "Kuala Lumpur, Malaysia"
+      ]
+    }
+  },
+  "strictGenerationRules": [
+    "Use only colors listed in this brand data.",
+    "Use only listed typography families and weights.",
+    "Use official logo assets; if unavailable, leave a logo placeholder and flag it.",
+    "Do not invent gradients, shadows, illustrations, icons, or textures outside the brand guide.",
+    "Prefer sharp geometric vector shapes, strong contrast, and concise text.",
+    "For social posts, default to 1080x1080 unless the user explicitly asks for another brand-supported size.",
+    "For policy memos, do not add decorative visual elements.",
+    "Return validation warnings before final creative output whenever required assets or fonts are missing."
+  ]
+}
