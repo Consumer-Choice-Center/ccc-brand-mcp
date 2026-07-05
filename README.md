@@ -114,7 +114,7 @@ git branch -M main
 git push -u origin main
 ```
 
-3. GitHub Actions will run `pnpm install --frozen-lockfile` and `pnpm run build` on pushes and PRs.
+3. GitHub Actions will run `pnpm install` and `pnpm run build` on pushes and PRs.
 
 ## Strictness Model
 
