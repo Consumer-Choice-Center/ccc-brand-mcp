@@ -10,6 +10,7 @@
   "files": [
     "dist",
     "data",
+    "assets",
     "README.md"
   ],
   "scripts": {
@@ -18,12 +19,12 @@
     "check": "tsc --noEmit"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.15.0",
-    "zod": "^3.25.0"
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "zod": "3.25.76"
   },
   "devDependencies": {
-    "@types/node": "^22.13.0",
-    "typescript": "^5.8.0"
+    "@types/node": "22.20.0",
+    "typescript": "5.9.3"
   },
   "engines": {
     "node": ">=20"

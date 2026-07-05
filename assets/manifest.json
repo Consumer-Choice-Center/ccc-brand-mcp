@@ -1,0 +1,23 @@
+{
+  "assetBaseEnvironmentVariable": "CCC_BRAND_ASSET_DIR",
+  "defaultAssetDirectory": "assets",
+  "requiredFonts": [
+    "fonts/Montserrat-Regular.ttf",
+    "fonts/Montserrat-Italic.ttf",
+    "fonts/Montserrat-Medium.ttf",
+    "fonts/Montserrat-MediumItalic.ttf",
+    "fonts/Montserrat-SemiBold.ttf",
+    "fonts/Montserrat-Bold.ttf",
+    "fonts/Anton-Regular.ttf",
+    "fonts/Hind-Medium.ttf",
+    "fonts/DMMono-Regular.ttf"
+  ],
+  "requiredLogos": [
+    "logos/ccc-wide-primary.svg",
+    "logos/ccc-wide-primary.png",
+    "logos/ccc-icon-primary.svg",
+    "logos/ccc-icon-primary.png",
+    "logos/ccc-wide-reversed.svg",
+    "logos/ccc-wide-reversed.png"
+  ]
+}

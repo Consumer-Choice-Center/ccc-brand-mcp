@@ -24,6 +24,7 @@ Official logo files are not included in this repository. The MCP deliberately wa
 ## Install
 
 ```bash
+corepack enable
 pnpm install
 pnpm run build
 ```
@@ -103,6 +104,43 @@ Returns an SVG draft for one of:
 
 The SVG uses only approved colors and font family names. Install the official fonts on the rendering machine for final output.
 
+### `audit_brand_assets`
+
+Checks whether required CCC logo and font assets are available. By default it checks `./assets`; set `CCC_BRAND_ASSET_DIR` to point at a different official asset directory.
+
+### `qa_social_layout`
+
+Checks headline, body, and CTA copy against CCC social layout limits before generation. In `final` mode, over-limit copy is a validation error; in `draft` mode, it is reported as a warning.
+
+## Assets
+
+Final outputs require official logo and font assets. This repo includes an asset manifest and expected directory structure, but it does not ship logo files or font binaries.
+
+Expected local structure:
+
+```text
+assets/
+  fonts/
+    Montserrat-Regular.ttf
+    Montserrat-Italic.ttf
+    Montserrat-Medium.ttf
+    Montserrat-MediumItalic.ttf
+    Montserrat-SemiBold.ttf
+    Montserrat-Bold.ttf
+    Anton-Regular.ttf
+    Hind-Medium.ttf
+    DMMono-Regular.ttf
+  logos/
+    ccc-wide-primary.svg
+    ccc-wide-primary.png
+    ccc-icon-primary.svg
+    ccc-icon-primary.png
+    ccc-wide-reversed.svg
+    ccc-wide-reversed.png
+```
+
+Run `audit_brand_assets` before using the MCP for final production output.
+
 ## GitHub Setup
 
 1. Create a new GitHub repo, for example `ccc-brand-mcp`.
@@ -114,7 +152,7 @@ git branch -M main
 git push -u origin main
 ```
 
-3. GitHub Actions will run `pnpm install` and `pnpm run build` on pushes and PRs.
+3. GitHub Actions will run `pnpm install --frozen-lockfile`, `pnpm run check`, and `pnpm run build` on pushes and PRs.
 
 ## Strictness Model
 
@@ -122,8 +160,9 @@ This server treats the brand guide as a contract:
 
 - off-palette colors are violations
 - unapproved fonts are violations
-- missing official logo assets are warnings
-- social dimensions outside `1080x1080` are warnings unless explicitly intended
+- missing official logo assets are violations in `final` mode and warnings in `draft` mode
+- social dimensions outside `1080x1350` are warnings unless explicitly intended
+- social copy that exceeds layout limits is a violation in `final` mode and a warning in `draft` mode
 - policy memo illustrations are forbidden by the guide
 
 Keep `data/ccc-brand.json` as the single source of truth when the brand guide changes.

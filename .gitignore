@@ -1,7 +1,7 @@
 node_modules/
 dist/
 .pnpm-store/
-social-media-template-assets/*.png
+social-media-template-assets/
 .env
 .DS_Store
 tmp/
