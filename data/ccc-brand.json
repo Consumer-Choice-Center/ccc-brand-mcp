@@ -108,7 +108,7 @@
   "social": {
     "canonicalSize": {
       "widthPx": 1080,
-      "heightPx": 1080
+      "heightPx": 1350
     },
     "commonPatterns": [
       "Policy alert",
@@ -123,6 +123,150 @@
       "Keep the message short and direct.",
       "Use geometric blocks, bands, and sharp-edged shapes.",
       "Do not create off-palette gradients or decorative effects."
+    ]
+  },
+  "visualSystem": {
+    "sourceReview": {
+      "reviewedPages": [
+        "Color Palette",
+        "Typography",
+        "CCC Logo",
+        "Social Media Post Visual Guide",
+        "Videography Common Visual Elements",
+        "Videography Standard Ending Animation",
+        "Policy Primer",
+        "Policy Note",
+        "Policy Memo",
+        "Coalition Letter"
+      ],
+      "notes": [
+        "Brand guide pages use warm white backgrounds, deep navy headings, and a pale outlined CCC monogram as a background motif.",
+        "Social examples rely on hard-edged geometric blocks, high contrast navy/orange fields, compact all-caps labels, and a visible CCC mark.",
+        "Document templates use precise margins, hierarchy callouts, and restrained topic-specific graphics; policy memos explicitly prohibit visual elements."
+      ]
+    },
+    "socialPosts": {
+      "defaultFeedSize": {
+        "widthPx": 1080,
+        "heightPx": 1350
+      },
+      "safeMarginPx": 70,
+      "footerHeightPx": 132,
+      "maxHeadlineLines": 4,
+      "maxBodyLines": 4,
+      "headlineMaxCharactersPerLine": 18,
+      "bodyMaxCharactersPerLine": 34,
+      "ctaMaxCharactersPerLine": 34,
+      "requiredElements": [
+        "Official CCC mark or wide logo",
+        "Clear issue label or content type label",
+        "Large high-contrast headline",
+        "consumerchoicecenter.org footer unless a more specific CTA is supplied"
+      ],
+      "composition": [
+        "Use sharp geometric blocks, bands, or angled panels.",
+        "Keep layouts poster-like and direct rather than decorative.",
+        "Avoid soft gradients, bokeh, generic stock styling, and off-palette effects."
+      ]
+    },
+    "videoGraphics": {
+      "horizontalSize": {
+        "widthPx": 1920,
+        "heightPx": 1080
+      },
+      "verticalSize": {
+        "widthPx": 1080,
+        "heightPx": 1920
+      },
+      "lowerThird": {
+        "nameLineFont": "Montserrat Bold",
+        "detailLineFont": "Montserrat Medium",
+        "labelFont": "DM Mono Regular",
+        "safeArea": "Keep text and watermarks inside title/action safe areas."
+      }
+    }
+  },
+  "assets": {
+    "assetBaseEnvironmentVariable": "CCC_BRAND_ASSET_DIR",
+    "defaultAssetDirectory": "assets",
+    "policy": [
+      "Final outputs must use official logo files and approved font files.",
+      "Draft placeholders are permitted only when the output mode is draft and must be reported as warnings.",
+      "Do not redraw the CCC logo as text or improvised vector art for final deliverables."
+    ],
+    "requiredFonts": [
+      {
+        "family": "Montserrat",
+        "weights": [
+          "Regular",
+          "Italic",
+          "Medium",
+          "Medium Italic",
+          "SemiBold",
+          "Bold"
+        ],
+        "fileNames": [
+          "fonts/Montserrat-Regular.ttf",
+          "fonts/Montserrat-Italic.ttf",
+          "fonts/Montserrat-Medium.ttf",
+          "fonts/Montserrat-MediumItalic.ttf",
+          "fonts/Montserrat-SemiBold.ttf",
+          "fonts/Montserrat-Bold.ttf"
+        ]
+      },
+      {
+        "family": "Anton",
+        "weights": [
+          "Regular"
+        ],
+        "fileNames": [
+          "fonts/Anton-Regular.ttf"
+        ]
+      },
+      {
+        "family": "Hind",
+        "weights": [
+          "Medium"
+        ],
+        "fileNames": [
+          "fonts/Hind-Medium.ttf"
+        ]
+      },
+      {
+        "family": "DM Mono",
+        "weights": [
+          "Regular"
+        ],
+        "fileNames": [
+          "fonts/DMMono-Regular.ttf"
+        ]
+      }
+    ],
+    "requiredLogos": [
+      {
+        "id": "ccc-wide-primary",
+        "usage": "Primary wide logo for standard brand-color use.",
+        "fileNames": [
+          "logos/ccc-wide-primary.svg",
+          "logos/ccc-wide-primary.png"
+        ]
+      },
+      {
+        "id": "ccc-icon-primary",
+        "usage": "CCC icon for compact marks, watermarks, and social corner placement.",
+        "fileNames": [
+          "logos/ccc-icon-primary.svg",
+          "logos/ccc-icon-primary.png"
+        ]
+      },
+      {
+        "id": "ccc-wide-reversed",
+        "usage": "Wide logo for dark navy or orange fields.",
+        "fileNames": [
+          "logos/ccc-wide-reversed.svg",
+          "logos/ccc-wide-reversed.png"
+        ]
+      }
     ]
   },
   "video": {
