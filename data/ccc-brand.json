@@ -373,7 +373,7 @@
     "Use official logo assets; if unavailable, leave a logo placeholder and flag it.",
     "Do not invent gradients, shadows, illustrations, icons, or textures outside the brand guide.",
     "Prefer sharp geometric vector shapes, strong contrast, and concise text.",
-    "For social posts, default to 1080x1080 unless the user explicitly asks for another brand-supported size.",
+    "For social posts, default to 1080x1350 unless the user explicitly asks for another brand-supported size.",
     "For policy memos, do not add decorative visual elements.",
     "Return validation warnings before final creative output whenever required assets or fonts are missing."
   ]

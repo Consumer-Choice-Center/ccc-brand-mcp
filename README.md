@@ -15,7 +15,7 @@ The initial rules were extracted from `CCC_Brand_Guide_2026_5.pdf`:
 
 - Palette: Autumn Orange `#E95C1F`, Leila `#22264E`, Base White `#FFFFFF`, Warm White `#FFF7EF`, Cool Mist `#E7ECF4`, Slate Blue `#6F789B`, Brick Coral `#B9473A`, Marigold `#F4B544`, Sand Beige `#CDB79F`, Deep Teal `#1E6F78`, Bright Teal `#00A6A6`, Soft Mint `#9BD8C7`
 - Typography: Montserrat, Anton, Hind, DM Mono
-- Social default: `1080x1080`, with `consumerchoicecenter.org` footer
+- Social default: `1080x1350`, with `consumerchoicecenter.org` footer
 - Video subtitles: Montserrat Bold, 55-60pt, bottom-third safe-area placement
 - Policy outputs: primer, note, memo, coalition letter rules
 
@@ -72,7 +72,7 @@ Sections: `all`, `colors`, `typography`, `logo`, `social`, `video`, `policyOutpu
 
 ### `validate_design_spec`
 
-Checks colors, fonts, social dimensions, and logo asset availability.
+Checks colors, fonts, social dimensions, and logo asset availability. Final logo validation requires `officialLogoHref` to reference an approved file from `assets/manifest.json` that exists in the configured asset directory.
 
 Example:
 
@@ -82,9 +82,9 @@ Example:
   "fonts": ["Montserrat", "DM Mono"],
   "assetType": "social",
   "widthPx": 1080,
-  "heightPx": 1080,
+  "heightPx": 1350,
   "usesLogo": true,
-  "hasOfficialLogoAsset": false
+  "officialLogoHref": "logos/ccc-wide-primary.svg"
 }
 ```
 
@@ -140,6 +140,15 @@ assets/
 ```
 
 Run `audit_brand_assets` before using the MCP for final production output.
+
+## Quality Checks
+
+```bash
+pnpm run check
+pnpm test
+```
+
+The test suite covers canonical social sizing, palette/font rejection, strict logo verification, prompt/SVG dimensions, layout overflow, and asset manifest consistency.
 
 ## GitHub Setup
 
