@@ -16,7 +16,8 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test": "pnpm run build && node --test tests/*.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",
