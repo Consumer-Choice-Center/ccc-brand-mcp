@@ -145,6 +145,51 @@
         "Document templates use precise margins, hierarchy callouts, and restrained topic-specific graphics; policy memos explicitly prohibit visual elements."
       ]
     },
+    "colorUse": {
+      "maxUniqueColorsFinal": 5,
+      "maxTertiaryColorsFinal": 1,
+      "socialRecipes": [
+        {
+          "name": "Primary contrast",
+          "useFor": "Policy alerts, CTA cards, and urgent advocacy posts",
+          "background": "Leila",
+          "primary": "Base White",
+          "accent": "Autumn Orange",
+          "neutral": "Warm White",
+          "optionalTertiary": "Marigold",
+          "avoid": [
+            "Do not combine multiple tertiary colors in large blocks.",
+            "Do not use Brick Coral and Autumn Orange as competing large panels."
+          ]
+        },
+        {
+          "name": "Warm editorial",
+          "useFor": "Quote cards, explainers, and calmer policy summaries",
+          "background": "Warm White",
+          "primary": "Leila",
+          "accent": "Autumn Orange",
+          "neutral": "Cool Mist",
+          "optionalTertiary": "Slate Blue",
+          "avoid": [
+            "Do not let pale neutrals dominate the headline area.",
+            "Do not add extra accent colors when the message is text-heavy."
+          ]
+        },
+        {
+          "name": "Data contrast",
+          "useFor": "Statistic and comparison cards",
+          "background": "Cool Mist",
+          "primary": "Leila",
+          "accent": "Autumn Orange",
+          "neutral": "Base White",
+          "optionalTertiary": "Bright Teal",
+          "avoid": [
+            "Do not make positive and negative panels fight with unrelated accent colors.",
+            "Use one tertiary color only for data emphasis or small tags."
+          ]
+        }
+      ]
+    },
     "socialPosts": {
       "defaultFeedSize": {
         "widthPx": 1080,
