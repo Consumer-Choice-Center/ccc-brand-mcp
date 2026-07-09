@@ -301,27 +301,66 @@
     ],
     "requiredLogos": [
       {
-        "id": "ccc-wide-primary",
-        "usage": "Primary wide logo for standard brand-color use.",
+        "id": "ccc-wide-orange",
+        "usage": "Primary Autumn Orange wide logo for Leila navy social fields and dark footers.",
         "fileNames": [
-          "logos/ccc-wide-primary.svg",
-          "logos/ccc-wide-primary.png"
+          "logos/ccc-wide-orange.svg"
         ]
       },
       {
-        "id": "ccc-icon-primary",
-        "usage": "CCC icon for compact marks, watermarks, and social corner placement.",
+        "id": "ccc-wide-leila",
+        "usage": "Leila navy wide logo for Autumn Orange, Warm White, and other light fields.",
         "fileNames": [
-          "logos/ccc-icon-primary.svg",
-          "logos/ccc-icon-primary.png"
+          "logos/ccc-wide-leila.svg"
         ]
       },
       {
-        "id": "ccc-wide-reversed",
-        "usage": "Wide logo for dark navy or orange fields.",
+        "id": "ccc-wide-slate",
+        "usage": "Slate Blue wide logo variant for approved muted brand applications.",
         "fileNames": [
-          "logos/ccc-wide-reversed.svg",
-          "logos/ccc-wide-reversed.png"
+          "logos/ccc-wide-slate.svg"
+        ]
+      },
+      {
+        "id": "ccc-wide-brick-coral",
+        "usage": "Brick Coral wide logo variant for approved tertiary brand applications.",
+        "fileNames": [
+          "logos/ccc-wide-brick-coral.svg"
+        ]
+      },
+      {
+        "id": "ccc-wide-marigold",
+        "usage": "Marigold wide logo variant for approved tertiary brand applications.",
+        "fileNames": [
+          "logos/ccc-wide-marigold.svg"
+        ]
+      },
+      {
+        "id": "ccc-wide-sand",
+        "usage": "Sand Beige wide logo variant for approved muted brand applications.",
+        "fileNames": [
+          "logos/ccc-wide-sand.svg"
+        ]
+      },
+      {
+        "id": "ccc-wide-deep-teal",
+        "usage": "Deep Teal wide logo variant for approved teal brand applications.",
+        "fileNames": [
+          "logos/ccc-wide-deep-teal.svg"
+        ]
+      },
+      {
+        "id": "ccc-wide-bright-teal",
+        "usage": "Bright Teal wide logo variant for approved teal brand applications.",
+        "fileNames": [
+          "logos/ccc-wide-bright-teal.svg"
+        ]
+      },
+      {
+        "id": "ccc-wide-soft-mint",
+        "usage": "Soft Mint wide logo variant for approved light-on-dark social applications.",
+        "fileNames": [
+          "logos/ccc-wide-soft-mint.svg"
         ]
       }
     ]
@@ -427,10 +466,11 @@
   "strictGenerationRules": [
     "Use only colors listed in this brand data.",
     "Use only listed typography families and weights.",
-    "Use official logo assets; if unavailable, leave a logo placeholder and flag it.",
+    "Use packaged official SVG logo assets by default; if unavailable, draft mode may leave a placeholder and final mode must fail validation.",
     "Do not invent gradients, shadows, illustrations, icons, or textures outside the brand guide.",
     "Prefer sharp geometric vector shapes, strong contrast, and concise text.",
     "For social posts, follow the CCC guide-style poster system: dominant Leila or Autumn Orange field, oversized condensed uppercase headline, orange emphasis, small label, subtle CCC ring watermark, footer URL, and official logo.",
+    "Large social headlines must use Anton Regular at poster scale or Montserrat Bold blocks; never use thin or regular Montserrat for the main headline.",
     "Do not use serif display headlines, large split-screen comparison layouts, or full-height diagonal divider wedges for social posts.",
     "For social posts, default to 1080x1350 unless the user explicitly asks for another brand-supported size.",
     "For policy memos, do not add decorative visual elements.",

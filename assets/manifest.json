@@ -13,11 +13,14 @@
     "fonts/DMMono-Regular.ttf"
   ],
   "requiredLogos": [
-    "logos/ccc-wide-primary.svg",
-    "logos/ccc-wide-primary.png",
-    "logos/ccc-icon-primary.svg",
-    "logos/ccc-icon-primary.png",
-    "logos/ccc-wide-reversed.svg",
-    "logos/ccc-wide-reversed.png"
+    "logos/ccc-wide-orange.svg",
+    "logos/ccc-wide-leila.svg",
+    "logos/ccc-wide-slate.svg",
+    "logos/ccc-wide-brick-coral.svg",
+    "logos/ccc-wide-marigold.svg",
+    "logos/ccc-wide-sand.svg",
+    "logos/ccc-wide-deep-teal.svg",
+    "logos/ccc-wide-bright-teal.svg",
+    "logos/ccc-wide-soft-mint.svg"
   ]
 }

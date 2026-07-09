@@ -39,10 +39,14 @@ test("color and font validation rejects off-brand values", () => {
 });
 
 test("logo references must be approved and present for final output", () => {
+  const emptyAssets = join(tmpdir(), `ccc-brand-assets-empty-${Date.now()}`);
+  mkdirSync(join(emptyAssets, "logos"), { recursive: true });
+
   const missing = validateSpec({
     mode: "final",
     usesLogo: true,
-    officialLogoHref: "logos/ccc-wide-primary.svg",
+    officialLogoHref: "logos/ccc-wide-orange.svg",
+    assetBasePath: emptyAssets,
   });
 
   assert.equal(missing.ok, false);
@@ -67,11 +71,11 @@ test("logo references must be approved and present for final output", () => {
 
   const tempAssets = join(tmpdir(), `ccc-brand-assets-${Date.now()}`);
   mkdirSync(join(tempAssets, "logos"), { recursive: true });
-  writeFileSync(join(tempAssets, "logos", "ccc-wide-primary.svg"), "<svg/>");
+  writeFileSync(join(tempAssets, "logos", "ccc-wide-orange.svg"), "<svg/>");
 
-  const present = validateLogoHref("logos/ccc-wide-primary.svg", tempAssets);
+  const present = validateLogoHref("logos/ccc-wide-orange.svg", tempAssets);
   assert.equal(present.ok, true);
-  assert.equal(present.approvedPath, "logos/ccc-wide-primary.svg");
+  assert.equal(present.approvedPath, "logos/ccc-wide-orange.svg");
 });
 
 test("social prompts and SVGs use 1080x1350", () => {
@@ -83,6 +87,7 @@ test("social prompts and SVGs use 1080x1350", () => {
 
   assert.match(prompt, /1080x1350/);
   assert.doesNotMatch(prompt, /1080x1080/);
+  assert.match(prompt, /logos\/ccc-wide-orange\.svg/);
 
   const result = createSocialSvg({
     template: "quote",
@@ -96,8 +101,9 @@ test("social prompts and SVGs use 1080x1350", () => {
   assert.match(result.svg, /data-ccc-style="guide-social"/);
   assert.match(result.svg, /data-ccc-watermark="ring"/);
   assert.doesNotMatch(result.svg, /<polygon/);
+  assert.doesNotMatch(result.svg, /CCC LOGO/);
+  assert.equal(result.selectedLogoHref, "logos/ccc-wide-orange.svg");
   assert.equal(result.validation.ok, true);
-  assert.match(result.validation.warnings.join("\n"), /Official CCC logo asset/);
 });
 
 test("generated SVG artifacts are linted for brand drift", () => {
@@ -124,6 +130,23 @@ test("generated SVG artifacts are linted for brand drift", () => {
   assert.match(result.violations.join("\n"), /ring watermark/);
 });
 
+test("generated SVG artifacts reject weak large social headline type", () => {
+  const result = validateSvgArtifact({
+    mode: "final",
+    assetType: "social",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" data-ccc-style="guide-social" width="1080" height="1350">
+      <rect width="1080" height="1350" fill="#22264E"/>
+      <g data-ccc-watermark="ring"><circle cx="900" cy="590" r="300" fill="none" stroke="#6F789B"/></g>
+      <image href="logos/ccc-wide-orange.svg" data-ccc-logo-href="logos/ccc-wide-orange.svg" x="786" y="58" width="220" height="76"/>
+      <text x="72" y="320" font-family="Montserrat" font-weight="400" font-size="96" fill="#FFFFFF">CHOICE ISN'T</text>
+      <text x="72" y="430" font-family="Montserrat" font-weight="400" font-size="96" fill="#E95C1F">OPTIONAL</text>
+    </svg>`,
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.violations.join("\n"), /thin or regular Montserrat/);
+});
+
 test("generated SVG artifacts reject old split-panel serif style", () => {
   const result = validateSvgArtifact({
     mode: "final",
@@ -145,19 +168,19 @@ test("generated SVG artifacts reject old split-panel serif style", () => {
 test("final SVG generation embeds a verified logo asset reference", () => {
   const tempAssets = join(tmpdir(), `ccc-brand-assets-svg-${Date.now()}`);
   mkdirSync(join(tempAssets, "logos"), { recursive: true });
-  writeFileSync(join(tempAssets, "logos", "ccc-wide-primary.svg"), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 76"><rect width="220" height="76" fill="#22264E"/></svg>`);
+  writeFileSync(join(tempAssets, "logos", "ccc-wide-orange.svg"), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 76"><rect width="220" height="76" fill="#E95C1F"/></svg>`);
 
   const result = createSocialSvg({
     template: "quote",
     headline: "Choice matters",
     includeLogoPlaceholder: true,
-    officialLogoHref: "logos/ccc-wide-primary.svg",
+    officialLogoHref: "logos/ccc-wide-orange.svg",
     assetBasePath: tempAssets,
     mode: "final",
   });
 
   assert.equal(result.validation.ok, true);
-  assert.match(result.svg, /data-ccc-logo-href="logos\/ccc-wide-primary.svg"/);
+  assert.match(result.svg, /data-ccc-logo-href="logos\/ccc-wide-orange.svg"/);
   assert.match(result.svg, /data-ccc-style="guide-social"/);
   assert.match(result.svg, /data-ccc-watermark="ring"/);
   assert.doesNotMatch(result.svg, /CCC LOGO/);
@@ -187,7 +210,7 @@ test("asset audit cross-checks manifest and expected files", () => {
 
   assert.equal(result.ok, false);
   assert.ok(result.missingFonts.includes("Montserrat"));
-  assert.ok(result.missingLogos.includes("ccc-wide-primary"));
+  assert.deepEqual(result.missingLogos, []);
   assert.deepEqual(result.manifestMissingFromBrand.fonts, []);
   assert.deepEqual(result.manifestMissingFromBrand.logos, []);
 });

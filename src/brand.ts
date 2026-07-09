@@ -397,6 +397,34 @@ export function validateLogoHref(input?: string, basePath?: string): LogoCheck {
   };
 }
 
+type LogoSurface = "dark" | "orange" | "light";
+
+const defaultLogoPriority: Record<LogoSurface, string[]> = {
+  dark: [
+    "logos/ccc-wide-orange.svg",
+    "logos/ccc-wide-soft-mint.svg",
+    "logos/ccc-wide-marigold.svg",
+  ],
+  orange: [
+    "logos/ccc-wide-leila.svg",
+    "logos/ccc-wide-deep-teal.svg",
+    "logos/ccc-wide-slate.svg",
+  ],
+  light: [
+    "logos/ccc-wide-leila.svg",
+    "logos/ccc-wide-orange.svg",
+    "logos/ccc-wide-deep-teal.svg",
+  ],
+};
+
+function firstUsableLogo(paths: string[], basePath?: string) {
+  return paths.find((path) => validateLogoHref(path, basePath).ok);
+}
+
+export function selectDefaultLogoHref(surface: LogoSurface = "dark", basePath?: string) {
+  return firstUsableLogo(defaultLogoPriority[surface], basePath) ?? firstUsableLogo(assetManifest.requiredLogos, basePath);
+}
+
 export function auditAssets(basePath?: string) {
   const base = getAssetBase(basePath);
   const fonts = brand.assets.requiredFonts.map((font) => {
@@ -648,6 +676,55 @@ function hasGuideStyleWatermark(svg: string) {
   return /data-ccc-style=["']guide-social["']|data-ccc-watermark=["']ring["']|aria-label=["'][^"']*CCC ring watermark/i.test(svg);
 }
 
+function readSvgPresentationValue(attrs: string, name: string) {
+  const attrMatch = attrs.match(new RegExp(`\\b${name}\\s*=\\s*["']([^"']+)["']`, "i"));
+  if (attrMatch) return attrMatch[1].trim();
+  const styleMatch = attrs.match(new RegExp(`${name}\\s*:\\s*([^;"'}]+)`, "i"));
+  return styleMatch?.[1]?.trim();
+}
+
+function parseFontSize(value?: string) {
+  if (!value) return undefined;
+  const match = value.match(/([0-9.]+)/);
+  return match ? Number(match[1]) : undefined;
+}
+
+function parseFontWeightValue(value?: string) {
+  if (!value) return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (/^\d+$/.test(normalized)) return Number(normalized);
+  if (normalized === "bold") return 700;
+  if (normalized === "semibold" || normalized === "semi bold") return 600;
+  if (normalized === "medium") return 500;
+  if (normalized === "regular" || normalized === "normal") return 400;
+  return undefined;
+}
+
+function extractSvgTextStyles(svg: string) {
+  return [...svg.matchAll(/<text\b([^>]*)>/gi)].map((match) => {
+    const attrs = match[1];
+    const family = readSvgPresentationValue(attrs, "font-family")?.split(",")[0]?.replace(/^['"]|['"]$/g, "");
+    const size = parseFontSize(readSvgPresentationValue(attrs, "font-size"));
+    const weight = parseFontWeightValue(readSvgPresentationValue(attrs, "font-weight"));
+    return { family, size, weight };
+  });
+}
+
+function hasPosterScaleHeadline(svg: string) {
+  return extractSvgTextStyles(svg).some((style) => {
+    if (!style.size) return false;
+    if (style.family === "Anton" && style.size >= 84) return true;
+    return style.size >= 56 && (style.weight ?? 400) >= 700;
+  });
+}
+
+function hasWeakLargeSocialType(svg: string) {
+  return extractSvgTextStyles(svg).some((style) => {
+    if (!style.size || style.size < 72) return false;
+    return style.family === "Montserrat" && (style.weight ?? 400) < 700;
+  });
+}
+
 function hasBadSocialSplitComposition(svg: string, widthPx?: number, heightPx?: number) {
   const width = widthPx ?? brand.social.canonicalSize.widthPx;
   const height = heightPx ?? brand.social.canonicalSize.heightPx;
@@ -675,6 +752,8 @@ export function validateSvgArtifact(input: {
   const heightPx = parseSvgDimension(input.svg, "height");
   const guideStyleWatermark = hasGuideStyleWatermark(input.svg);
   const badSocialSplitComposition = assetType === "social" && hasBadSocialSplitComposition(input.svg, widthPx, heightPx);
+  const posterScaleHeadline = assetType === "social" && hasPosterScaleHeadline(input.svg);
+  const weakLargeSocialType = assetType === "social" && hasWeakLargeSocialType(input.svg);
 
   if (!input.svg.trim().startsWith("<svg")) {
     violations.push("Artifact is not a standalone SVG document.");
@@ -711,6 +790,12 @@ export function validateSvgArtifact(input: {
     if (badSocialSplitComposition) {
       severityPush(mode, violations, warnings, "SVG uses a large full-height diagonal split composition; CCC social posts must follow the guide-style poster system with one dominant field, stacked text blocks, labels, footer, logo, and subtle ring watermark.");
     }
+    if (!posterScaleHeadline) {
+      severityPush(mode, violations, warnings, "SVG social output must use guide-style poster typography: oversized Anton uppercase or bold Montserrat headline blocks.");
+    }
+    if (weakLargeSocialType) {
+      severityPush(mode, violations, warnings, "Large social headline text must not use thin or regular Montserrat. Use Anton Regular or Montserrat Bold blocks for guide-style posts.");
+    }
   }
 
   if (placeholderLogo) {
@@ -739,6 +824,8 @@ export function validateSvgArtifact(input: {
     logoChecks,
     guideStyleWatermark,
     badSocialSplitComposition,
+    posterScaleHeadline,
+    weakLargeSocialType,
   };
 }
 
@@ -793,8 +880,10 @@ export function createGenerationPrompt(input: {
     "- Use Autumn Orange backgrounds with Leila stacked headline blocks only for alert/petition layouts.",
     "- Keep message hierarchy bold, direct, and uncluttered.",
     "- Do not use serif display typography; social headlines must be Anton Regular or Montserrat Bold.",
+    "- Large social headlines must never be thin or regular Montserrat; use Anton Regular at poster scale or Montserrat Bold blocks.",
     "- Do not use large left/right split-screen infographic panels or full-height diagonal divider wedges.",
-    "- Use official CCC logo assets for final output; placeholders are draft-only.",
+    `- Use packaged official logo SVG assets for final output. Default dark-field logo: logos/ccc-wide-orange.svg. Default orange/light-field logo: logos/ccc-wide-leila.svg.`,
+    "- Do not draw, type, trace, or approximate the CCC logo. Placeholders are draft-only.",
     "- Final SVG deliverables must pass the validate_svg_artifact MCP tool before handoff.",
     "",
     `Brand voice: ${brand.brand.positioning.voice.join(", ")}.`,
@@ -840,11 +929,13 @@ export function createSocialSvg(input: {
   const text = getColor(preset.text);
   const inverseText = preset.background === "leila" ? getColor("baseWhite") : getColor("leila");
   const bodyText = input.body ?? "";
-  const logoCheck = validateLogoHref(input.officialLogoHref, input.assetBasePath);
+  const logoSurface: LogoSurface = isLowerThird ? "light" : input.template === "policy_alert" ? "orange" : "dark";
+  const selectedLogoHref = input.officialLogoHref ?? selectDefaultLogoHref(logoSurface, input.assetBasePath);
+  const logoCheck = validateLogoHref(selectedLogoHref, input.assetBasePath);
   const hasOfficialLogoAsset = logoCheck.ok;
   const logoImageHref = logoHrefToImageData(logoCheck, input.assetBasePath);
   const logo = hasOfficialLogoAsset && logoCheck.approvedPath
-    ? `<image href="${escapeXml(logoImageHref ?? input.officialLogoHref ?? logoCheck.approvedPath)}" data-ccc-logo-href="${escapeXml(logoCheck.approvedPath)}" x="${width - 294}" y="58" width="220" height="76" preserveAspectRatio="xMidYMid meet"/>`
+    ? `<image href="${escapeXml(logoImageHref ?? selectedLogoHref ?? logoCheck.approvedPath)}" data-ccc-logo-href="${escapeXml(logoCheck.approvedPath)}" x="${width - 294}" y="58" width="220" height="76" preserveAspectRatio="xMidYMid meet"/>`
     : input.includeLogoPlaceholder && input.mode !== "final"
     ? `<g aria-label="Official CCC logo placeholder"><rect x="${width - 294}" y="58" width="220" height="76" fill="none" stroke="${accent}" stroke-width="4"/><text x="${width - 274}" y="91" font-family="Montserrat" font-weight="700" font-size="24" fill="${inverseText}">CCC LOGO</text><text x="${width - 274}" y="119" font-family="Montserrat" font-weight="500" font-size="13" fill="${inverseText}">USE OFFICIAL ASSET</text></g>`
     : "";
@@ -935,7 +1026,7 @@ export function createSocialSvg(input: {
     heightPx: height,
     usesLogo: true,
     hasOfficialLogoAsset,
-    officialLogoHref: input.officialLogoHref,
+    officialLogoHref: selectedLogoHref,
     assetBasePath: input.assetBasePath,
   });
   validation.violations.push(...layout.violations);
@@ -950,5 +1041,5 @@ export function createSocialSvg(input: {
   validation.warnings.push(...artifactValidation.warnings);
   validation.ok = validation.violations.length === 0;
 
-  return { validation, layout, artifactValidation, svg };
+  return { validation, layout, artifactValidation, selectedLogoHref, svg };
 }

@@ -89,7 +89,7 @@ server.tool(
     heightPx: z.number().int().positive().optional(),
     usesLogo: z.boolean().default(false),
     hasOfficialLogoAsset: z.boolean().default(false).describe("Legacy hint only. Final validation requires officialLogoHref."),
-    officialLogoHref: z.string().optional().describe("Optional href/path for an approved logo file listed in assets/manifest.json."),
+    officialLogoHref: z.string().optional().describe("Optional href/path for an approved logo file listed in assets/manifest.json. If omitted, create_social_svg auto-selects a packaged official SVG logo."),
     assetBasePath: z.string().optional().describe("Optional asset directory used to verify officialLogoHref."),
     usesDecorativeElements: z.boolean().default(false),
   },
@@ -154,7 +154,7 @@ server.tool(
 
 server.tool(
   "create_social_svg",
-  "Generate a strict CCC-branded SVG layout for quick social or lower-third design drafts.",
+  "Generate a strict CCC-branded SVG layout for quick social or lower-third design drafts. Uses packaged official SVG logos by default.",
   {
     template: z.enum(["policy_alert", "statistic", "quote", "cta", "lower_third"]).default("policy_alert"),
     headline: z.string().min(1).max(120),
@@ -162,8 +162,8 @@ server.tool(
     body: z.string().max(220).optional(),
     cta: z.string().max(80).optional(),
     includeLogoPlaceholder: z.boolean().default(true),
-    officialLogoHref: z.string().optional().describe("Optional href/path for an approved logo file listed in assets/manifest.json."),
-    assetBasePath: z.string().optional().describe("Optional asset directory used to verify officialLogoHref."),
+    officialLogoHref: z.string().optional().describe("Optional href/path for an approved logo file listed in assets/manifest.json. Defaults to a packaged official SVG logo chosen for the background."),
+    assetBasePath: z.string().optional().describe("Optional asset directory used to verify officialLogoHref and default logo assets."),
     mode: z.enum(["draft", "final"]).default("draft"),
   },
   async ({ template, headline, kicker, body, cta, includeLogoPlaceholder, officialLogoHref, assetBasePath, mode }) => ({

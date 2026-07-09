@@ -2,7 +2,7 @@
 
 This directory is the expected local home for official CCC logo and font assets.
 
-The MCP does not ship logo files or font binaries. Final branded output should only be generated after the official assets are placed here or after `CCC_BRAND_ASSET_DIR` points to an equivalent directory.
+The MCP ships official CCC SVG logo variants in `assets/logos`. It does not ship font binaries. Final branded output should only be rendered after the official fonts are placed here, installed on the render machine, or made available through `CCC_BRAND_ASSET_DIR`.
 
 Expected structure:
 
@@ -19,12 +19,15 @@ assets/
     Hind-Medium.ttf
     DMMono-Regular.ttf
   logos/
-    ccc-wide-primary.svg
-    ccc-wide-primary.png
-    ccc-icon-primary.svg
-    ccc-icon-primary.png
-    ccc-wide-reversed.svg
-    ccc-wide-reversed.png
+    ccc-wide-orange.svg
+    ccc-wide-leila.svg
+    ccc-wide-slate.svg
+    ccc-wide-brick-coral.svg
+    ccc-wide-marigold.svg
+    ccc-wide-sand.svg
+    ccc-wide-deep-teal.svg
+    ccc-wide-bright-teal.svg
+    ccc-wide-soft-mint.svg
 ```
 
 Use the MCP `audit_brand_assets` tool to verify which required files are present.
