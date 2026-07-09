@@ -19,7 +19,7 @@ The initial rules were extracted from `CCC_Brand_Guide_2026_5.pdf`:
 - Video subtitles: Montserrat Bold, 55-60pt, bottom-third safe-area placement
 - Policy outputs: primer, note, memo, coalition letter rules
 
-Official logo files are not included in this repository. The MCP deliberately warns when a generation asks for a logo without an approved asset.
+Official CCC SVG logo variants are included in `assets/logos`. Font binaries are not included, so final render machines still need the approved fonts installed or supplied through `CCC_BRAND_ASSET_DIR`.
 
 ## Install
 
@@ -72,7 +72,7 @@ Sections: `all`, `colors`, `typography`, `logo`, `social`, `video`, `policyOutpu
 
 ### `validate_design_spec`
 
-Checks colors, fonts, social dimensions, and logo asset availability. Final logo validation requires `officialLogoHref` to reference an approved file from `assets/manifest.json` that exists in the configured asset directory.
+Checks colors, fonts, social dimensions, and logo asset availability. Final logo validation requires `officialLogoHref` to reference an approved file from `assets/manifest.json` that exists in the configured asset directory. The built-in social SVG generator auto-selects approved packaged SVG logos when no logo path is supplied.
 
 Example:
 
@@ -84,7 +84,7 @@ Example:
   "widthPx": 1080,
   "heightPx": 1350,
   "usesLogo": true,
-  "officialLogoHref": "logos/ccc-wide-primary.svg"
+  "officialLogoHref": "logos/ccc-wide-orange.svg"
 }
 ```
 
@@ -102,7 +102,7 @@ Returns an SVG draft for one of:
 - `cta`
 - `lower_third`
 
-The SVG uses only approved colors and font family names. Install the official fonts on the rendering machine for final output.
+The SVG uses only approved colors, font family names, and packaged logo SVGs. Install the official fonts on the rendering machine for final output.
 
 ### `audit_brand_assets`
 
@@ -124,6 +124,7 @@ It checks:
 - `1080x1350` social dimensions
 - CCC guide-style social composition markers, including the ring watermark
 - large full-height diagonal split layouts that drift away from the post guide
+- weak large social headlines set in thin or regular Montserrat
 - official logo asset references
 - placeholder logo text or improvised logo marks
 
@@ -147,7 +148,7 @@ Recommended loop for generated SVGs:
 
 ## Assets
 
-Final outputs require official logo and font assets. This repo includes an asset manifest and expected directory structure, but it does not ship logo files or font binaries.
+Final outputs require official logo and font assets. This repo ships official SVG logo variants and an asset manifest. It does not ship font binaries.
 
 Expected local structure:
 
@@ -164,12 +165,15 @@ assets/
     Hind-Medium.ttf
     DMMono-Regular.ttf
   logos/
-    ccc-wide-primary.svg
-    ccc-wide-primary.png
-    ccc-icon-primary.svg
-    ccc-icon-primary.png
-    ccc-wide-reversed.svg
-    ccc-wide-reversed.png
+    ccc-wide-orange.svg
+    ccc-wide-leila.svg
+    ccc-wide-slate.svg
+    ccc-wide-brick-coral.svg
+    ccc-wide-marigold.svg
+    ccc-wide-sand.svg
+    ccc-wide-deep-teal.svg
+    ccc-wide-bright-teal.svg
+    ccc-wide-soft-mint.svg
 ```
 
 Run `audit_brand_assets` before using the MCP for final production output.
@@ -202,12 +206,13 @@ This server treats the brand guide as a contract:
 
 - off-palette colors are violations
 - unapproved fonts are violations
-- missing official logo assets are violations in `final` mode and warnings in `draft` mode
+- missing official logo assets are violations in `final` mode and warnings in `draft` mode; packaged SVG logos are used by default for generated SVGs
 - SVG logo placeholders are forbidden in `final` mode
 - generated SVGs must pass `validate_svg_artifact` before handoff
 - social dimensions outside `1080x1350` are warnings unless explicitly intended
 - final social graphics should use no more than five unique brand colors and no more than one tertiary accent color
 - social posts must follow the CCC guide-style poster system: dominant navy or orange field, oversized condensed uppercase headline, orange emphasis, subtle CCC ring watermark, small label, footer URL, and official logo
+- large social headlines must use Anton Regular at poster scale or Montserrat Bold blocks
 - large split-screen comparison layouts, full-height diagonal divider wedges, and serif display headlines are violations
 - social copy that exceeds layout limits is a violation in `final` mode and a warning in `draft` mode
 - policy memo illustrations are forbidden by the guide
