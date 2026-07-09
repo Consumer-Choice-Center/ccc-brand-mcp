@@ -93,6 +93,9 @@ test("social prompts and SVGs use 1080x1350", () => {
 
   assert.match(result.svg, /width="1080"/);
   assert.match(result.svg, /height="1350"/);
+  assert.match(result.svg, /data-ccc-style="guide-social"/);
+  assert.match(result.svg, /data-ccc-watermark="ring"/);
+  assert.doesNotMatch(result.svg, /<polygon/);
   assert.equal(result.validation.ok, true);
   assert.match(result.validation.warnings.join("\n"), /Official CCC logo asset/);
 });
@@ -118,6 +121,25 @@ test("generated SVG artifacts are linted for brand drift", () => {
   assert.match(result.violations.join("\n"), /Color system is overloaded/);
   assert.match(result.violations.join("\n"), /logo placeholder/i);
   assert.match(result.violations.join("\n"), /verified official CCC logo/);
+  assert.match(result.violations.join("\n"), /ring watermark/);
+});
+
+test("generated SVG artifacts reject old split-panel serif style", () => {
+  const result = validateSvgArtifact({
+    mode: "final",
+    assetType: "social",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350">
+      <rect width="1080" height="1350" fill="#22264E"/>
+      <polygon points="480,0 1080,0 1080,1350 420,1350" fill="#E95C1F"/>
+      <text x="72" y="360" font-family="Georgia" font-size="96" fill="#FFFFFF">CHOICE</text>
+      <text x="72" y="1280" font-family="DM Mono" fill="#FFFFFF">consumerchoicecenter.org</text>
+    </svg>`,
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.violations.join("\n"), /Georgia/);
+  assert.match(result.violations.join("\n"), /large full-height diagonal split composition/);
+  assert.match(result.violations.join("\n"), /ring watermark/);
 });
 
 test("final SVG generation embeds a verified logo asset reference", () => {
@@ -136,6 +158,8 @@ test("final SVG generation embeds a verified logo asset reference", () => {
 
   assert.equal(result.validation.ok, true);
   assert.match(result.svg, /data-ccc-logo-href="logos\/ccc-wide-primary.svg"/);
+  assert.match(result.svg, /data-ccc-style="guide-social"/);
+  assert.match(result.svg, /data-ccc-watermark="ring"/);
   assert.doesNotMatch(result.svg, /CCC LOGO/);
 
   const artifact = validateSvgArtifact({
