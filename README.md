@@ -112,6 +112,37 @@ Checks whether required CCC logo and font assets are available. By default it ch
 
 Checks headline, body, and CTA copy against CCC social layout limits before generation. In `final` mode, over-limit copy is a validation error; in `draft` mode, it is reported as a warning.
 
+### `validate_svg_artifact`
+
+Validates generated SVG markup after another LLM or design agent produces it. Use this as the final gate before accepting CCC-branded SVG output.
+
+It checks:
+
+- approved CCC font families only, with no generic fallback families
+- approved CCC palette colors only
+- disciplined color count and tertiary accent usage
+- `1080x1350` social dimensions
+- official logo asset references
+- placeholder logo text or improvised logo marks
+
+Example:
+
+```json
+{
+  "mode": "final",
+  "assetType": "social",
+  "requiresLogo": true,
+  "svg": "<svg ...>...</svg>"
+}
+```
+
+Recommended loop for generated SVGs:
+
+1. Call `create_generation_prompt`.
+2. Generate the SVG in the model/design tool.
+3. Call `validate_svg_artifact`.
+4. Fix every violation before using the SVG.
+
 ## Assets
 
 Final outputs require official logo and font assets. This repo includes an asset manifest and expected directory structure, but it does not ship logo files or font binaries.
@@ -148,7 +179,7 @@ pnpm run check
 pnpm test
 ```
 
-The test suite covers canonical social sizing, palette/font rejection, strict logo verification, prompt/SVG dimensions, layout overflow, and asset manifest consistency.
+The test suite covers canonical social sizing, palette/font rejection, strict logo verification, prompt/SVG dimensions, generated SVG artifact linting, layout overflow, and asset manifest consistency.
 
 ## GitHub Setup
 
@@ -170,7 +201,10 @@ This server treats the brand guide as a contract:
 - off-palette colors are violations
 - unapproved fonts are violations
 - missing official logo assets are violations in `final` mode and warnings in `draft` mode
+- SVG logo placeholders are forbidden in `final` mode
+- generated SVGs must pass `validate_svg_artifact` before handoff
 - social dimensions outside `1080x1350` are warnings unless explicitly intended
+- final social graphics should use no more than five unique brand colors and no more than one tertiary accent color
 - social copy that exceeds layout limits is a violation in `final` mode and a warning in `draft` mode
 - policy memo illustrations are forbidden by the guide
 
