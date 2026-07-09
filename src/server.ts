@@ -10,6 +10,7 @@ import {
   getBrandSection,
   qaSocialLayout,
   socialTemplates,
+  validateSvgArtifact,
   validateSpec,
 } from "./brand.js";
 
@@ -120,6 +121,21 @@ server.tool(
   },
   async ({ template, headline, body, cta, mode }) => ({
     content: [{ type: "text", text: asText(qaSocialLayout({ template, headline, body, cta, mode })) }],
+  }),
+);
+
+server.tool(
+  "validate_svg_artifact",
+  "Validate a generated SVG artifact against CCC brand rules, including approved fonts, palette discipline, social dimensions, and official logo usage.",
+  {
+    svg: z.string().min(1).max(2_000_000).describe("Full standalone SVG markup to validate."),
+    assetType: z.enum(["social", "video", "other"]).default("social"),
+    mode: z.enum(["draft", "final"]).default("final"),
+    requiresLogo: z.boolean().default(true),
+    assetBasePath: z.string().optional().describe("Optional asset directory used to verify official logo references."),
+  },
+  async (input) => ({
+    content: [{ type: "text", text: asText(validateSvgArtifact(input)) }],
   }),
 );
 
