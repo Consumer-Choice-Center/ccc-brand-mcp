@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 
@@ -47,6 +47,24 @@ const brandDataSchema = z.object({
   video: z.record(z.string(), z.unknown()),
   visualSystem: z.object({
     sourceReview: z.record(z.string(), z.unknown()).optional(),
+    colorUse: z
+      .object({
+        maxUniqueColorsFinal: z.number().int().positive(),
+        maxTertiaryColorsFinal: z.number().int().nonnegative(),
+        socialRecipes: z.array(
+          z.object({
+            name: z.string(),
+            useFor: z.string(),
+            background: z.string(),
+            primary: z.string(),
+            accent: z.string(),
+            neutral: z.string(),
+            optionalTertiary: z.string().optional(),
+            avoid: z.array(z.string()).default([]),
+          }),
+        ),
+      })
+      .optional(),
     socialPosts: z.object({
       defaultFeedSize: z.object({ widthPx: z.number().int().positive(), heightPx: z.number().int().positive() }),
       safeMarginPx: z.number().int().nonnegative(),
@@ -130,9 +148,9 @@ export const socialTemplates = {
   },
   cta: {
     label: "CONSUMER VOICE",
-    background: "autumnOrange",
-    accent: "leila",
-    text: "leila",
+    background: "leila",
+    accent: "autumnOrange",
+    text: "baseWhite",
   },
   lower_third: {
     label: "LIVE INTERVIEW",
@@ -164,6 +182,7 @@ const allowedFontWeights = new Map(
   brand.assets.requiredFonts.map((font) => [font.family, new Set(font.weights)]),
 );
 const allowedFontFamilies = new Set(brand.assets.requiredFonts.map((font) => font.family));
+const allowedFontFamilyList = [...allowedFontFamilies].join(", ");
 const approvedLogoPaths = new Set(assetManifest.requiredLogos);
 
 export function asText(data: unknown) {
@@ -202,6 +221,10 @@ function getColor(name: string) {
     throw new Error(`Unknown CCC brand color: ${name}`);
   }
   return color;
+}
+
+function getColorName(hex: string) {
+  return colorByHex.get(normalizeHex(hex));
 }
 
 function escapeXml(value: string) {
@@ -422,6 +445,52 @@ export function auditAssets(basePath?: string) {
   };
 }
 
+function validateColorHarmony(colors: string[], mode: ValidationMode) {
+  const violations: string[] = [];
+  const warnings: string[] = [];
+  const resolvedColors = colors
+    .map((color) => resolveColor(color))
+    .filter((color): color is string => Boolean(color));
+  const uniqueColors = [...new Set(resolvedColors)];
+  const colorUse = brand.visualSystem.colorUse;
+  const maxUniqueColorsFinal = colorUse?.maxUniqueColorsFinal ?? 5;
+  const maxTertiaryColorsFinal = colorUse?.maxTertiaryColorsFinal ?? 1;
+  const tertiaryColors = uniqueColors.filter((color) =>
+    Object.values(brand.colors.tertiary ?? {}).some((tertiaryColor) => tertiaryColor.toUpperCase() === color),
+  );
+
+  if (uniqueColors.length > maxUniqueColorsFinal) {
+    severityPush(
+      mode,
+      violations,
+      warnings,
+      `Color system is overloaded: ${uniqueColors.length} brand colors are used. Use ${maxUniqueColorsFinal} or fewer for final CCC social graphics.`,
+    );
+  }
+
+  if (tertiaryColors.length > maxTertiaryColorsFinal) {
+    severityPush(
+      mode,
+      violations,
+      warnings,
+      `Too many tertiary accent colors are used: ${tertiaryColors.map((color) => getColorName(color) ?? color).join(", ")}. Use at most ${maxTertiaryColorsFinal} tertiary accent color for final layouts.`,
+    );
+  }
+
+  const primaryColors = new Set(Object.values(brand.colors.primary).map((color) => color.toUpperCase()));
+  if (uniqueColors.length > 0 && !uniqueColors.some((color) => primaryColors.has(color))) {
+    severityPush(mode, violations, warnings, "CCC layouts must anchor the palette in Autumn Orange and/or Leila.");
+  }
+
+  return {
+    ok: violations.length === 0,
+    violations,
+    warnings,
+    uniqueColors,
+    tertiaryColors,
+  };
+}
+
 export function validateSpec(input: {
   colors?: string[];
   fonts?: string[];
@@ -446,6 +515,10 @@ export function validateSpec(input: {
       violations.push(`Color "${color}" is not in the CCC 2026 brand palette.`);
     }
   }
+
+  const harmony = validateColorHarmony(input.colors ?? [], mode);
+  violations.push(...harmony.violations);
+  warnings.push(...harmony.warnings);
 
   for (const font of input.fonts ?? []) {
     const check = parseFontDescriptor(font);
@@ -486,7 +559,156 @@ export function validateSpec(input: {
     warnings,
     fontChecks,
     logoCheck,
+    colorHarmony: harmony,
   };
+}
+
+function cssFamilyName(value: string) {
+  return value.trim().replace(/^[']|[']$/g, "").replace(/^["]|["]$/g, "");
+}
+
+function extractSvgFontFamilies(svg: string) {
+  const families = new Set<string>();
+  for (const match of svg.matchAll(/\bfont-family\s*=\s*["']([^"']+)["']/gi)) {
+    for (const family of match[1].split(",")) {
+      if (cssFamilyName(family)) families.add(cssFamilyName(family));
+    }
+  }
+  for (const match of svg.matchAll(/font-family\s*:\s*([^;"'}]+)/gi)) {
+    for (const family of match[1].split(",")) {
+      if (cssFamilyName(family)) families.add(cssFamilyName(family));
+    }
+  }
+  return [...families];
+}
+
+function extractSvgColorValues(svg: string) {
+  const colorValues = new Set<string>();
+  const attrPattern = /\b(?:fill|stroke|stop-color)\s*=\s*["']([^"']+)["']/gi;
+  const stylePattern = /(?:fill|stroke|stop-color)\s*:\s*([^;"'}]+)/gi;
+  for (const match of svg.matchAll(attrPattern)) colorValues.add(match[1].trim());
+  for (const match of svg.matchAll(stylePattern)) colorValues.add(match[1].trim());
+  return [...colorValues].filter((color) => {
+    const normalized = color.toLowerCase();
+    return normalized !== "none" && normalized !== "transparent" && normalized !== "currentcolor" && !normalized.startsWith("url(");
+  });
+}
+
+function extractSvgLogoRefs(svg: string) {
+  const refs = new Set<string>();
+  const patterns = [
+    /\bdata-ccc-logo-href\s*=\s*["']([^"']+)["']/gi,
+    /\b(?:href|xlink:href)\s*=\s*["']([^"']+)["']/gi,
+  ];
+  for (const pattern of patterns) {
+    for (const match of svg.matchAll(pattern)) {
+      const ref = match[1].trim();
+      if (ref && !ref.startsWith("data:")) refs.add(ref);
+    }
+  }
+  return [...refs];
+}
+
+function parseSvgDimension(svg: string, name: "width" | "height") {
+  const match = svg.match(new RegExp(`\\b${name}\\s*=\\s*["']([0-9.]+)(?:px)?["']`, "i"));
+  if (!match) return undefined;
+  return Number(match[1]);
+}
+
+function hasLogoPlaceholder(svg: string) {
+  return /CCC LOGO|USE OFFICIAL ASSET|logo placeholder|placeholder/i.test(svg);
+}
+
+export function validateSvgArtifact(input: {
+  svg: string;
+  assetType?: "social" | "video" | "other";
+  mode?: ValidationMode;
+  requiresLogo?: boolean;
+  assetBasePath?: string;
+}) {
+  const mode = input.mode ?? "final";
+  const assetType = input.assetType ?? "social";
+  const violations: string[] = [];
+  const warnings: string[] = [];
+  const fonts = extractSvgFontFamilies(input.svg);
+  const colors = extractSvgColorValues(input.svg);
+  const logoRefs = extractSvgLogoRefs(input.svg);
+  const fontChecks = fonts.map((font) => parseFontDescriptor(font));
+  const placeholderLogo = hasLogoPlaceholder(input.svg);
+  const logoChecks = logoRefs.map((ref) => validateLogoHref(ref, input.assetBasePath));
+  const widthPx = parseSvgDimension(input.svg, "width");
+  const heightPx = parseSvgDimension(input.svg, "height");
+
+  if (!input.svg.trim().startsWith("<svg")) {
+    violations.push("Artifact is not a standalone SVG document.");
+  }
+
+  for (const check of fontChecks) {
+    if (!check.ok && check.message) {
+      violations.push(check.message);
+    }
+  }
+
+  if (fonts.length === 0 && /<text[\s>]/i.test(input.svg)) {
+    severityPush(mode, violations, warnings, `SVG text must declare an approved CCC font family. Approved families: ${allowedFontFamilyList}.`);
+  }
+
+  for (const color of colors) {
+    if (!resolveColor(color)) {
+      violations.push(`SVG color "${color}" is not in the CCC 2026 brand palette.`);
+    }
+  }
+
+  const harmony = validateColorHarmony(colors, mode);
+  violations.push(...harmony.violations);
+  warnings.push(...harmony.warnings);
+
+  if (assetType === "social") {
+    const expected = brand.social.canonicalSize;
+    if (widthPx !== expected.widthPx || heightPx !== expected.heightPx) {
+      severityPush(mode, violations, warnings, `SVG social dimensions are ${widthPx ?? "missing"}x${heightPx ?? "missing"}; CCC social output must be ${expected.widthPx}x${expected.heightPx}.`);
+    }
+  }
+
+  if (placeholderLogo) {
+    severityPush(mode, violations, warnings, "SVG contains a logo placeholder. Final CCC output must use an approved official logo asset.");
+  }
+
+  if (input.requiresLogo ?? true) {
+    const hasOfficialLogo = logoChecks.some((check) => check.ok);
+    if (!hasOfficialLogo) {
+      severityPush(mode, violations, warnings, "SVG does not reference a verified official CCC logo asset.");
+    }
+  }
+
+  return {
+    ok: violations.length === 0,
+    mode,
+    violations,
+    warnings,
+    widthPx,
+    heightPx,
+    fonts,
+    colors,
+    colorHarmony: harmony,
+    placeholderLogo,
+    logoRefs,
+    logoChecks,
+  };
+}
+
+function logoHrefToImageData(logoCheck: LogoCheck, basePath?: string) {
+  if (!logoCheck.ok || !logoCheck.approvedPath) return undefined;
+  const absolutePath = resolve(getAssetBase(basePath), logoCheck.approvedPath);
+  const ext = extname(absolutePath).toLowerCase();
+  if (ext === ".svg") {
+    const svg = readFileSync(absolutePath, "utf8");
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  }
+  if (ext === ".png") {
+    return `data:image/png;base64,${readFileSync(absolutePath).toString("base64")}`;
+  }
+  return undefined;
 }
 
 export function createGenerationPrompt(input: {
@@ -510,11 +732,20 @@ export function createGenerationPrompt(input: {
     "- Subheads: Montserrat Medium, Montserrat Medium Italic, Montserrat SemiBold, or Hind Medium",
     "- Body: Montserrat Regular or Montserrat Italic",
     "- Technical labels: DM Mono Regular",
+    `- SVG/CSS font-family values must be exactly one of: ${allowedFontFamilyList}. Do not add generic fallbacks such as Arial, Helvetica, or sans-serif.`,
+    "",
+    "Color discipline:",
+    `- Use ${brand.visualSystem.colorUse?.maxUniqueColorsFinal ?? 5} or fewer unique brand colors in final social graphics.`,
+    `- Use at most ${brand.visualSystem.colorUse?.maxTertiaryColorsFinal ?? 1} tertiary accent color in final social graphics.`,
+    ...(brand.visualSystem.colorUse?.socialRecipes.map(
+      (recipe) => `- ${recipe.name}: ${recipe.useFor}; background ${recipe.background}, primary ${recipe.primary}, accent ${recipe.accent}, neutral ${recipe.neutral}${recipe.optionalTertiary ? `, optional tertiary ${recipe.optionalTertiary}` : ""}.`,
+    ) ?? []),
     "",
     "Visual composition:",
     "- Use hard-edged geometric panels, bands, and blocks.",
     "- Keep message hierarchy bold, direct, and uncluttered.",
     "- Use official CCC logo assets for final output; placeholders are draft-only.",
+    "- Final SVG deliverables must pass the validate_svg_artifact MCP tool before handoff.",
     "",
     `Brand voice: ${brand.brand.positioning.voice.join(", ")}.`,
   ];
@@ -561,9 +792,10 @@ export function createSocialSvg(input: {
   const bodyText = input.body ?? "";
   const logoCheck = validateLogoHref(input.officialLogoHref, input.assetBasePath);
   const hasOfficialLogoAsset = logoCheck.ok;
-  const logo = hasOfficialLogoAsset && input.officialLogoHref
-    ? `<image href="${escapeXml(input.officialLogoHref)}" x="${width - 294}" y="58" width="220" height="76" preserveAspectRatio="xMidYMid meet"/>`
-    : input.includeLogoPlaceholder
+  const logoImageHref = logoHrefToImageData(logoCheck, input.assetBasePath);
+  const logo = hasOfficialLogoAsset && logoCheck.approvedPath
+    ? `<image href="${escapeXml(logoImageHref ?? input.officialLogoHref ?? logoCheck.approvedPath)}" data-ccc-logo-href="${escapeXml(logoCheck.approvedPath)}" x="${width - 294}" y="58" width="220" height="76" preserveAspectRatio="xMidYMid meet"/>`
+    : input.includeLogoPlaceholder && input.mode !== "final"
     ? `<g aria-label="Official CCC logo placeholder"><rect x="${width - 294}" y="58" width="220" height="76" fill="none" stroke="${accent}" stroke-width="4"/><text x="${width - 274}" y="91" font-family="Montserrat" font-weight="700" font-size="24" fill="${inverseText}">CCC LOGO</text><text x="${width - 274}" y="119" font-family="Montserrat" font-weight="500" font-size="13" fill="${inverseText}">USE OFFICIAL ASSET</text></g>`
     : "";
 
@@ -593,8 +825,8 @@ export function createSocialSvg(input: {
   <polygon points="650,0 ${width},0 ${width},${height} 505,${height}" fill="${accent}"/>
   <rect x="0" y="${footerY}" width="${width}" height="${footerHeight}" fill="${preset.background === "leila" ? getColor("warmWhite") : getColor("leila")}"/>
   ${logo}
-  <rect x="72" y="158" width="360" height="58" fill="${input.template === "statistic" ? getColor("leila") : getColor("marigold")}"/>
-  <text x="96" y="196" font-family="DM Mono" font-size="24" fill="${input.template === "statistic" ? getColor("baseWhite") : getColor("leila")}">${escapeXml(input.kicker || preset.label)}</text>
+  <rect x="72" y="158" width="360" height="58" fill="${accent}"/>
+  <text x="96" y="196" font-family="DM Mono" font-size="24" fill="${accent === getColor("leila") ? getColor("baseWhite") : getColor("leila")}">${escapeXml(input.kicker || preset.label)}</text>
   ${headlineSvg}
   ${bodySvg}
   <text x="72" y="${height - 54}" font-family="Montserrat" font-weight="600" font-size="28" fill="${preset.background === "leila" ? getColor("leila") : getColor("baseWhite")}">${escapeXml(input.cta || brand.social.requiredFooter)}</text>
