@@ -122,6 +122,8 @@ It checks:
 - approved CCC palette colors only
 - disciplined color count and tertiary accent usage
 - `1080x1350` social dimensions
+- CCC guide-style social composition markers, including the ring watermark
+- large full-height diagonal split layouts that drift away from the post guide
 - official logo asset references
 - placeholder logo text or improvised logo marks
 
@@ -205,6 +207,8 @@ This server treats the brand guide as a contract:
 - generated SVGs must pass `validate_svg_artifact` before handoff
 - social dimensions outside `1080x1350` are warnings unless explicitly intended
 - final social graphics should use no more than five unique brand colors and no more than one tertiary accent color
+- social posts must follow the CCC guide-style poster system: dominant navy or orange field, oversized condensed uppercase headline, orange emphasis, subtle CCC ring watermark, small label, footer URL, and official logo
+- large split-screen comparison layouts, full-height diagonal divider wedges, and serif display headlines are violations
 - social copy that exceeds layout limits is a violation in `final` mode and a warning in `draft` mode
 - policy memo illustrations are forbidden by the guide
 
