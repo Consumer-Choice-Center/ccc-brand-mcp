@@ -11,6 +11,7 @@ import {
   parseFontDescriptor,
   qaSocialLayout,
   resolveColor,
+  validateSvgArtifact,
   validateLogoHref,
   validateSpec,
 } from "../dist/brand.js";
@@ -94,6 +95,56 @@ test("social prompts and SVGs use 1080x1350", () => {
   assert.match(result.svg, /height="1350"/);
   assert.equal(result.validation.ok, true);
   assert.match(result.validation.warnings.join("\n"), /Official CCC logo asset/);
+});
+
+test("generated SVG artifacts are linted for brand drift", () => {
+  const result = validateSvgArtifact({
+    mode: "final",
+    assetType: "social",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350">
+      <rect width="1080" height="1350" fill="#FFF7EF"/>
+      <rect width="400" height="400" fill="#22264E"/>
+      <rect x="400" width="400" height="400" fill="#E95C1F"/>
+      <rect y="400" width="400" height="400" fill="#E7ECF4"/>
+      <rect x="400" y="400" width="400" height="400" fill="#F4B544"/>
+      <rect y="800" width="400" height="400" fill="#B9473A"/>
+      <text x="40" y="80" font-family="Montserrat, Arial, sans-serif" fill="#FFFFFF">CCC LOGO</text>
+    </svg>`,
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.violations.join("\n"), /Arial/);
+  assert.match(result.violations.join("\n"), /sans-serif/);
+  assert.match(result.violations.join("\n"), /Color system is overloaded/);
+  assert.match(result.violations.join("\n"), /logo placeholder/i);
+  assert.match(result.violations.join("\n"), /verified official CCC logo/);
+});
+
+test("final SVG generation embeds a verified logo asset reference", () => {
+  const tempAssets = join(tmpdir(), `ccc-brand-assets-svg-${Date.now()}`);
+  mkdirSync(join(tempAssets, "logos"), { recursive: true });
+  writeFileSync(join(tempAssets, "logos", "ccc-wide-primary.svg"), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 76"><rect width="220" height="76" fill="#22264E"/></svg>`);
+
+  const result = createSocialSvg({
+    template: "quote",
+    headline: "Choice matters",
+    includeLogoPlaceholder: true,
+    officialLogoHref: "logos/ccc-wide-primary.svg",
+    assetBasePath: tempAssets,
+    mode: "final",
+  });
+
+  assert.equal(result.validation.ok, true);
+  assert.match(result.svg, /data-ccc-logo-href="logos\/ccc-wide-primary.svg"/);
+  assert.doesNotMatch(result.svg, /CCC LOGO/);
+
+  const artifact = validateSvgArtifact({
+    mode: "final",
+    assetType: "social",
+    svg: result.svg,
+    assetBasePath: tempAssets,
+  });
+  assert.equal(artifact.ok, true);
 });
 
 test("layout QA escalates overflow in final mode", () => {
