@@ -76,6 +76,7 @@ const brandDataSchema = z.object({
       ctaMaxCharactersPerLine: z.number().int().positive(),
       requiredElements: z.array(z.string()).optional(),
       composition: z.array(z.string()).optional(),
+      forbiddenComposition: z.array(z.string()).optional(),
     }),
     videoGraphics: z.object({
       horizontalSize: z.object({ widthPx: z.number().int().positive(), heightPx: z.number().int().positive() }),
@@ -609,6 +610,30 @@ function extractSvgLogoRefs(svg: string) {
   return [...refs];
 }
 
+function extractPolygonPointBoxes(svg: string) {
+  const boxes: Array<{ minX: number; maxX: number; minY: number; maxY: number; width: number; height: number }> = [];
+  for (const match of svg.matchAll(/<polygon\b[^>]*\bpoints\s*=\s*["']([^"']+)["'][^>]*>/gi)) {
+    const numbers = match[1]
+      .trim()
+      .split(/[\s,]+/)
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value));
+    const xs: number[] = [];
+    const ys: number[] = [];
+    for (let index = 0; index < numbers.length - 1; index += 2) {
+      xs.push(numbers[index]);
+      ys.push(numbers[index + 1]);
+    }
+    if (xs.length === 0 || ys.length === 0) continue;
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    boxes.push({ minX, maxX, minY, maxY, width: maxX - minX, height: maxY - minY });
+  }
+  return boxes;
+}
+
 function parseSvgDimension(svg: string, name: "width" | "height") {
   const match = svg.match(new RegExp(`\\b${name}\\s*=\\s*["']([0-9.]+)(?:px)?["']`, "i"));
   if (!match) return undefined;
@@ -617,6 +642,16 @@ function parseSvgDimension(svg: string, name: "width" | "height") {
 
 function hasLogoPlaceholder(svg: string) {
   return /CCC LOGO|USE OFFICIAL ASSET|logo placeholder|placeholder/i.test(svg);
+}
+
+function hasGuideStyleWatermark(svg: string) {
+  return /data-ccc-style=["']guide-social["']|data-ccc-watermark=["']ring["']|aria-label=["'][^"']*CCC ring watermark/i.test(svg);
+}
+
+function hasBadSocialSplitComposition(svg: string, widthPx?: number, heightPx?: number) {
+  const width = widthPx ?? brand.social.canonicalSize.widthPx;
+  const height = heightPx ?? brand.social.canonicalSize.heightPx;
+  return extractPolygonPointBoxes(svg).some((box) => box.width >= width * 0.38 && box.height >= height * 0.72);
 }
 
 export function validateSvgArtifact(input: {
@@ -638,6 +673,8 @@ export function validateSvgArtifact(input: {
   const logoChecks = logoRefs.map((ref) => validateLogoHref(ref, input.assetBasePath));
   const widthPx = parseSvgDimension(input.svg, "width");
   const heightPx = parseSvgDimension(input.svg, "height");
+  const guideStyleWatermark = hasGuideStyleWatermark(input.svg);
+  const badSocialSplitComposition = assetType === "social" && hasBadSocialSplitComposition(input.svg, widthPx, heightPx);
 
   if (!input.svg.trim().startsWith("<svg")) {
     violations.push("Artifact is not a standalone SVG document.");
@@ -668,6 +705,12 @@ export function validateSvgArtifact(input: {
     if (widthPx !== expected.widthPx || heightPx !== expected.heightPx) {
       severityPush(mode, violations, warnings, `SVG social dimensions are ${widthPx ?? "missing"}x${heightPx ?? "missing"}; CCC social output must be ${expected.widthPx}x${expected.heightPx}.`);
     }
+    if (!guideStyleWatermark) {
+      severityPush(mode, violations, warnings, "SVG social output must include the CCC guide-style ring watermark or mark motif.");
+    }
+    if (badSocialSplitComposition) {
+      severityPush(mode, violations, warnings, "SVG uses a large full-height diagonal split composition; CCC social posts must follow the guide-style poster system with one dominant field, stacked text blocks, labels, footer, logo, and subtle ring watermark.");
+    }
   }
 
   if (placeholderLogo) {
@@ -694,6 +737,8 @@ export function validateSvgArtifact(input: {
     placeholderLogo,
     logoRefs,
     logoChecks,
+    guideStyleWatermark,
+    badSocialSplitComposition,
   };
 }
 
@@ -742,8 +787,13 @@ export function createGenerationPrompt(input: {
     ) ?? []),
     "",
     "Visual composition:",
-    "- Use hard-edged geometric panels, bands, and blocks.",
+    "- Match the CCC social post visual guide: one dominant navy or orange poster field, oversized condensed uppercase typography, orange emphasis, small issue label, official logo, footer URL, and subtle CCC ring watermark.",
+    "- Use stacked dark text blocks and compact callout strips for emphasis, especially on orange policy-alert layouts.",
+    "- Use Leila navy backgrounds with Base White headlines and Autumn Orange word emphasis for most social posts.",
+    "- Use Autumn Orange backgrounds with Leila stacked headline blocks only for alert/petition layouts.",
     "- Keep message hierarchy bold, direct, and uncluttered.",
+    "- Do not use serif display typography; social headlines must be Anton Regular or Montserrat Bold.",
+    "- Do not use large left/right split-screen infographic panels or full-height diagonal divider wedges.",
     "- Use official CCC logo assets for final output; placeholders are draft-only.",
     "- Final SVG deliverables must pass the validate_svg_artifact MCP tool before handoff.",
     "",
@@ -761,7 +811,7 @@ export function createGenerationPrompt(input: {
   if (input.includeNegativePrompt) {
     prompt.push(
       "",
-      "Negative prompt: off-palette colors, unapproved fonts, soft gradients, invented logo marks, distorted logo, generic corporate stock style, dense infographic clutter, decorative effects outside the guide, policy memo illustrations.",
+      "Negative prompt: serif typography, Times/Georgia-style headlines, large left/right split-screen composition, full-height diagonal divider wedges, policy comparison infographic layout, off-palette colors, unapproved fonts, soft gradients, invented logo marks, distorted logo, generic corporate stock style, dense infographic clutter, decorative effects outside the guide, policy memo illustrations.",
     );
   }
 
@@ -802,11 +852,39 @@ export function createSocialSvg(input: {
   const layout = qaSocialLayout({ template: input.template, headline: input.headline, body: bodyText, cta: input.cta, mode: input.mode });
   const headlineLines = layout.headline.lines;
   const bodyLines = layout.body.lines;
-  const headlineSvg = headlineLines
-    .map((line, index) => `<text x="${isLowerThird ? 90 : 72}" y="${isLowerThird ? 840 + index * 62 : 390 + index * 82}" font-family="Montserrat" font-weight="700" font-size="${isLowerThird ? 54 : 72}" fill="${isLowerThird ? getColor("baseWhite") : inverseText}">${escapeXml(line)}</text>`)
+  const socialHeadlineLines = headlineLines.length > 0 ? headlineLines : wrapWords(input.headline, 14).slice(0, 4);
+  const headlineSvg = isLowerThird
+    ? headlineLines
+      .map((line, index) => `<text x="90" y="${840 + index * 62}" font-family="Montserrat" font-weight="700" font-size="54" fill="${getColor("baseWhite")}">${escapeXml(line.toUpperCase())}</text>`)
+      .join("\n")
+    : "";
+  const bodySvg = isLowerThird
+    ? bodyLines
+      .map((line, index) => `<text x="90" y="${970 + index * 42}" font-family="Montserrat" font-weight="400" font-size="32" fill="${text}">${escapeXml(line)}</text>`)
+      .join("\n")
+    : "";
+  const guideWatermark = (cx: number, cy: number, stroke: string, opacity = 0.22) => `<g data-ccc-watermark="ring" aria-label="CCC ring watermark" opacity="${opacity}" fill="none" stroke="${stroke}" stroke-width="28">
+  <circle cx="${cx}" cy="${cy}" r="150"/>
+  <circle cx="${cx}" cy="${cy}" r="225"/>
+  <circle cx="${cx}" cy="${cy}" r="300"/>
+</g>`;
+  const darkSocialHeadline = socialHeadlineLines
+    .map((line, index) => `<text x="72" y="${310 + index * 106}" font-family="Anton" font-weight="400" font-size="104" fill="${index === socialHeadlineLines.length - 1 ? accent : getColor("baseWhite")}">${escapeXml(line.toUpperCase())}</text>`)
     .join("\n");
-  const bodySvg = bodyLines
-    .map((line, index) => `<text x="${isLowerThird ? 90 : 76}" y="${isLowerThird ? 970 + index * 42 : 790 + index * 44}" font-family="Montserrat" font-weight="400" font-size="${isLowerThird ? 32 : 32}" fill="${isLowerThird ? text : inverseText}">${escapeXml(line)}</text>`)
+  const darkBody = bodyLines
+    .map((line, index) => `<text x="112" y="${780 + index * 40}" font-family="Montserrat" font-weight="${index === 0 ? 700 : 400}" font-size="32" fill="${getColor("baseWhite")}">${escapeXml(line)}</text>`)
+    .join("\n");
+  const orangeBlocks = socialHeadlineLines
+    .map((line, index) => {
+      const y = 270 + index * 86;
+      const widthEstimate = Math.min(790, Math.max(440, line.length * 44));
+      const fill = index % 2 === 0 ? getColor("baseWhite") : accent;
+      return `<rect x="72" y="${y - 62}" width="${widthEstimate}" height="74" fill="${getColor("leila")}"/>
+  <text x="96" y="${y - 8}" font-family="Montserrat" font-weight="700" font-size="58" fill="${fill}">${escapeXml(line.toUpperCase())}</text>`;
+    })
+    .join("\n");
+  const orangeBody = bodyLines
+    .map((line, index) => `<text x="178" y="${760 + index * 36}" font-family="Montserrat" font-weight="${index === 0 ? 700 : 400}" font-size="30" fill="${getColor("baseWhite")}">${escapeXml(line)}</text>`)
     .join("\n");
 
   const svg = isLowerThird
@@ -820,16 +898,32 @@ export function createSocialSvg(input: {
   ${headlineSvg}
   ${bodySvg}
 </svg>`
-    : `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="CCC social post">
-  <rect width="${width}" height="${height}" fill="${bg}"/>
-  <polygon points="650,0 ${width},0 ${width},${height} 505,${height}" fill="${accent}"/>
-  <rect x="0" y="${footerY}" width="${width}" height="${footerHeight}" fill="${preset.background === "leila" ? getColor("warmWhite") : getColor("leila")}"/>
+    : input.template === "policy_alert"
+    ? `<svg xmlns="http://www.w3.org/2000/svg" data-ccc-style="guide-social" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="CCC social post">
+  <rect width="${width}" height="${height}" fill="${getColor("autumnOrange")}"/>
+  ${guideWatermark(845, 360, getColor("marigold"), 0.26)}
   ${logo}
-  <rect x="72" y="158" width="360" height="58" fill="${accent}"/>
-  <text x="96" y="196" font-family="DM Mono" font-size="24" fill="${accent === getColor("leila") ? getColor("baseWhite") : getColor("leila")}">${escapeXml(input.kicker || preset.label)}</text>
-  ${headlineSvg}
-  ${bodySvg}
-  <text x="72" y="${height - 54}" font-family="Montserrat" font-weight="600" font-size="28" fill="${preset.background === "leila" ? getColor("leila") : getColor("baseWhite")}">${escapeXml(input.cta || brand.social.requiredFooter)}</text>
+  <rect x="72" y="74" width="300" height="56" rx="8" fill="${getColor("leila")}" transform="rotate(-7 72 74)"/>
+  <text x="102" y="119" font-family="DM Mono" font-size="28" fill="${accent}" transform="rotate(-7 102 119)">${escapeXml(input.kicker || preset.label).toUpperCase()}</text>
+  ${orangeBlocks}
+  <rect x="0" y="700" width="${width}" height="150" fill="${getColor("leila")}"/>
+  <circle cx="116" cy="775" r="42" fill="none" stroke="${accent}" stroke-width="5"/>
+  ${orangeBody}
+  <rect x="0" y="${footerY}" width="${width}" height="${footerHeight}" fill="${getColor("leila")}"/>
+  <text x="72" y="${height - 54}" font-family="DM Mono" font-weight="400" font-size="18" fill="${getColor("baseWhite")}">${escapeXml(input.cta || brand.social.requiredFooter)}</text>
+</svg>`
+    : `<svg xmlns="http://www.w3.org/2000/svg" data-ccc-style="guide-social" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="CCC social post">
+  <rect width="${width}" height="${height}" fill="${getColor("leila")}"/>
+  ${guideWatermark(900, 590, getColor("slateBlue"), 0.20)}
+  ${logo}
+  <text x="72" y="78" font-family="DM Mono" font-size="18" fill="${input.template === "statistic" ? getColor("softMint") : getColor("baseWhite")}">${escapeXml(input.kicker || preset.label).toUpperCase()}</text>
+  <rect x="72" y="96" width="42" height="14" fill="${accent}"/>
+  ${darkSocialHeadline}
+  <rect x="72" y="730" width="8" height="94" fill="${accent}"/>
+  ${darkBody}
+  <path d="M72 952 C260 934 430 934 620 952" fill="none" stroke="${accent}" stroke-width="18" stroke-linecap="round"/>
+  <line x1="72" y1="${footerY - 34}" x2="${width - 72}" y2="${footerY - 34}" stroke="${getColor("softMint")}" stroke-width="3" opacity="0.8"/>
+  <text x="72" y="${height - 54}" font-family="DM Mono" font-weight="400" font-size="18" fill="${getColor("baseWhite")}">${escapeXml(input.cta || brand.social.requiredFooter)}</text>
 </svg>`;
 
   const validation = validateSpec({
@@ -846,7 +940,15 @@ export function createSocialSvg(input: {
   });
   validation.violations.push(...layout.violations);
   validation.warnings.push(...layout.warnings);
+  const artifactValidation = validateSvgArtifact({
+    svg,
+    assetType: isLowerThird ? "video" : "social",
+    mode: input.mode,
+    assetBasePath: input.assetBasePath,
+  });
+  validation.violations.push(...artifactValidation.violations);
+  validation.warnings.push(...artifactValidation.warnings);
   validation.ok = validation.violations.length === 0;
 
-  return { validation, layout, svg };
+  return { validation, layout, artifactValidation, svg };
 }

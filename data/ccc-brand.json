@@ -206,12 +206,24 @@
         "Official CCC mark or wide logo",
         "Clear issue label or content type label",
         "Large high-contrast headline",
+        "Large condensed uppercase social headline set in Anton or Montserrat Bold",
+        "CCC ring watermark or approved CCC mark motif used subtly in the background",
         "consumerchoicecenter.org footer unless a more specific CTA is supplied"
       ],
       "composition": [
-        "Use sharp geometric blocks, bands, or angled panels.",
-        "Keep layouts poster-like and direct rather than decorative.",
-        "Avoid soft gradients, bokeh, generic stock styling, and off-palette effects."
+        "Use the brand guide social post system: poster-like navy or orange fields, oversized condensed uppercase typography, orange emphasis, short labels, footer line, official CCC logo, and subtle CCC ring watermark.",
+        "Prefer one dominant field color with text blocks, strips, underlines, or compact callout chips instead of split-screen infographic panels.",
+        "For dark layouts, use Leila as the dominant background, Base White typography, Autumn Orange emphasis, and a subtle Slate Blue or Leila-tint CCC ring watermark.",
+        "For orange alert layouts, use Autumn Orange as the dominant background with stacked Leila text boxes, Base White typography, and a dark footer band.",
+        "Keep layouts poster-like and direct rather than decorative or editorial.",
+        "Avoid full-height diagonal split compositions, serif display typography, large unrelated comparison panels, soft gradients, bokeh, generic stock styling, and off-palette effects."
+      ],
+      "forbiddenComposition": [
+        "Do not use large left/right split-screen fields for ordinary social posts.",
+        "Do not use full-height diagonal divider wedges as the primary composition.",
+        "Do not use serif headline typography.",
+        "Do not create placeholder logo boxes for final output.",
+        "Do not imitate a generic policy comparison infographic when the guide calls for bold CCC poster cards."
       ]
     },
     "videoGraphics": {
@@ -418,6 +430,8 @@
     "Use official logo assets; if unavailable, leave a logo placeholder and flag it.",
     "Do not invent gradients, shadows, illustrations, icons, or textures outside the brand guide.",
     "Prefer sharp geometric vector shapes, strong contrast, and concise text.",
+    "For social posts, follow the CCC guide-style poster system: dominant Leila or Autumn Orange field, oversized condensed uppercase headline, orange emphasis, small label, subtle CCC ring watermark, footer URL, and official logo.",
+    "Do not use serif display headlines, large split-screen comparison layouts, or full-height diagonal divider wedges for social posts.",
     "For social posts, default to 1080x1350 unless the user explicitly asks for another brand-supported size.",
     "For policy memos, do not add decorative visual elements.",
     "Return validation warnings before final creative output whenever required assets or fonts are missing."
