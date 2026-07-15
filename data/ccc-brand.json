@@ -206,20 +206,58 @@
         "Official CCC mark or wide logo",
         "Clear issue label or content type label",
         "Large high-contrast headline",
-        "Large condensed uppercase social headline set in Anton or Montserrat Bold",
-        "CCC ring watermark or approved CCC mark motif used subtly in the background",
+        "Dominant uppercase social headline set in the native reference display slot (Anton in references 1, 2, and 4; Montserrat Bold in reference 3)",
+        "Cropped nested-C CCC mark silhouette filled with a semi-transparent approved brand gradient",
         "consumerchoicecenter.org footer unless a more specific CTA is supplied"
       ],
+      "styleVariants": [
+        {
+          "id": "navy_poster",
+          "useFor": "Consumer voice, quote, and general advocacy posts that do not need urgent petition treatment",
+          "composition": "Reference 1 system: Leila field, three or four frame-filling Anton lines, Autumn Orange word emphasis and underline, restrained support copy, compact footer, official orange logo, and a cropped gradient CCC mark."
+        },
+        {
+          "id": "petition_push",
+          "useFor": "Petition, policymaker, lawmaker, mandate, and direct advocacy ask posts",
+          "composition": "Reference 3 system: high-urgency Autumn Orange layout with the original Montserrat Bold headline slots, selected Leila text blocks, real megaphone paths, dark action band, dark footer, official orange logo, and a cropped gradient CCC mark."
+        },
+        {
+          "id": "orange_alert",
+          "useFor": "Policy alerts, lawmaker calls, urgent petition posts",
+          "composition": "Reference 3 system: Autumn Orange field, tilted issue label, original Montserrat Bold hierarchy, selected Leila text blocks, real megaphone paths, dark action band and footer, official orange logo, and a cropped marigold-to-transparent CCC mark."
+        },
+        {
+          "id": "statistic_card",
+          "useFor": "Data points and survey results",
+          "composition": "Reference 2 system: Leila field, monumental Autumn Orange Anton statistic, bold supporting statement, compact evidence callout, bottom logo, and a cropped gradient CCC mark."
+        },
+        {
+          "id": "contrast_cards",
+          "useFor": "Bad-vs-good or choice-vs-mandate comparison posts",
+          "composition": "Reference 4 system: controlled Leila/Warm White split, paired Anton BAD/GOOD or NO/YES headlines, compact comparison cards, one tertiary accent at most, footer URL, official logo, and cropped gradient CCC marks."
+        }
+      ],
+      "referenceAssets": [
+        "post-references/ccc-post-reference-1.svg",
+        "post-references/ccc-post-reference-2.svg",
+        "post-references/ccc-post-reference-3.svg",
+        "post-references/ccc-post-reference-4.svg"
+      ],
+      "referenceUsage": "Packaged SVG post references are locked layout contracts. Preserve their coordinates, native display fonts, line rhythm, crop behavior, CCC mark geometry, icon paths, CTA placement, logo usage, and variant structure while replacing their wording with the requested message.",
       "composition": [
-        "Use the brand guide social post system: poster-like navy or orange fields, oversized condensed uppercase typography, orange emphasis, short labels, footer line, official CCC logo, and subtle CCC ring watermark.",
-        "Prefer one dominant field color with text blocks, strips, underlines, or compact callout chips instead of split-screen infographic panels.",
-        "For dark layouts, use Leila as the dominant background, Base White typography, Autumn Orange emphasis, and a subtle Slate Blue or Leila-tint CCC ring watermark.",
+        "Map navy_poster to reference 1, statistic_card to reference 2, petition_push/orange_alert to reference 3, and contrast_cards to reference 4.",
+        "Use each reference's native display face and fixed type slots: Anton Regular in references 1, 2, and 4; Montserrat Bold in reference 3. Never use SVG textLength stretching.",
+        "Use the actual nested-C CCC mark silhouette as a large cropped background element; fill it with a subtle approved gradient and never approximate it with concentric circles.",
+        "Prefer one dominant field color with text blocks, strips, underlines, or compact callout chips; a controlled two-field split is reserved for contrast_cards because reference 4 uses it.",
+        "For dark layouts, use Leila as the dominant background, Warm White typography, Autumn Orange emphasis, and a subtle Slate Blue-to-transparent CCC mark.",
         "For orange alert layouts, use Autumn Orange as the dominant background with stacked Leila text boxes, Base White typography, and a dark footer band.",
+        "For petition, policymaker, lawmaker, and mandate asks, default to petition_push or orange_alert rather than navy_poster.",
+        "Create variety by choosing among the five reference-mapped style variants; do not invent crop or coordinate variations inside a locked reference layout.",
         "Keep layouts poster-like and direct rather than decorative or editorial.",
         "Avoid full-height diagonal split compositions, serif display typography, large unrelated comparison panels, soft gradients, bokeh, generic stock styling, and off-palette effects."
       ],
       "forbiddenComposition": [
-        "Do not use large left/right split-screen fields for ordinary social posts.",
+        "Do not use large left/right split-screen fields except for the reference-4 contrast_cards system.",
         "Do not use full-height diagonal divider wedges as the primary composition.",
         "Do not use serif headline typography.",
         "Do not create placeholder logo boxes for final output.",
@@ -467,11 +505,14 @@
     "Use only colors listed in this brand data.",
     "Use only listed typography families and weights.",
     "Use packaged official SVG logo assets by default; if unavailable, draft mode may leave a placeholder and final mode must fail validation.",
-    "Do not invent gradients, shadows, illustrations, icons, or textures outside the brand guide.",
+    "Do not invent gradients, shadows, illustrations, icons, or textures outside the brand guide; the only default gradient is the semi-transparent fill inside the cropped CCC mark watermark.",
     "Prefer sharp geometric vector shapes, strong contrast, and concise text.",
-    "For social posts, follow the CCC guide-style poster system: dominant Leila or Autumn Orange field, oversized condensed uppercase headline, orange emphasis, small label, subtle CCC ring watermark, footer URL, and official logo.",
-    "Large social headlines must use Anton Regular at poster scale or Montserrat Bold blocks; never use thin or regular Montserrat for the main headline.",
-    "Do not use serif display headlines, large split-screen comparison layouts, or full-height diagonal divider wedges for social posts.",
+    "For social posts, follow the mapped reference system with its native display font, small issue label, official logo, footer URL, real reference icon paths, and the cropped nested-C CCC mark filled with a subtle transparent brand gradient.",
+    "For petition, policymaker, lawmaker, mandate, and direct advocacy asks, default to petition_push or orange_alert rather than a generic navy poster.",
+    "Vary social post layouts across navy poster, petition push, orange alert, statistic card, and compact contrast-card variants based on the message.",
+    "Treat the packaged SVG post references as locked layout contracts: preserve coordinates, native display fonts, line rhythm, crop behavior, CCC mark geometry, icon paths, CTA placement, and logo usage while replacing the wording.",
+    "Fit large social headlines into the native reference slots without SVG textLength stretching; references 1, 2, and 4 use Anton Regular, while reference 3 uses Montserrat Bold.",
+    "Do not use serif display headlines or full-height diagonal divider wedges; use a large split only for the reference-4 contrast_cards system.",
     "For social posts, default to 1080x1350 unless the user explicitly asks for another brand-supported size.",
     "For policy memos, do not add decorative visual elements.",
     "Return validation warnings before final creative output whenever required assets or fonts are missing."

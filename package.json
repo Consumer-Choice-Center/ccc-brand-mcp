@@ -1,6 +1,6 @@
 {
   "name": "ccc-brand-mcp",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Strict MCP server for Consumer Choice Center brand-guided design generation.",
   "type": "module",
   "packageManager": "pnpm@11.7.0",
@@ -17,7 +17,8 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "check": "tsc --noEmit",
-    "test": "pnpm run build && node --test tests/*.test.mjs"
+    "test": "pnpm run build && node --test tests/*.test.mjs",
+    "render:samples": "pnpm run build && node scripts/generate-reference-variants.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",
