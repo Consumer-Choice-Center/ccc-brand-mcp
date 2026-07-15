@@ -22,5 +22,11 @@
     "logos/ccc-wide-deep-teal.svg",
     "logos/ccc-wide-bright-teal.svg",
     "logos/ccc-wide-soft-mint.svg"
+  ],
+  "postReferences": [
+    "post-references/ccc-post-reference-1.svg",
+    "post-references/ccc-post-reference-2.svg",
+    "post-references/ccc-post-reference-3.svg",
+    "post-references/ccc-post-reference-4.svg"
   ]
 }

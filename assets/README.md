@@ -1,8 +1,8 @@
 # CCC Brand Assets
 
-This directory is the expected local home for official CCC logo and font assets.
+This directory contains the official CCC logo assets and the approved open-source brand font binaries used by the generator.
 
-The MCP ships official CCC SVG logo variants in `assets/logos`. It does not ship font binaries. Final branded output should only be rendered after the official fonts are placed here, installed on the render machine, or made available through `CCC_BRAND_ASSET_DIR`.
+The MCP embeds the required font faces into generated SVGs for deterministic rendering. The font licenses are stored in `assets/fonts/licenses`. A custom `CCC_BRAND_ASSET_DIR` may still override the packaged asset directory.
 
 Expected structure:
 
@@ -18,6 +18,11 @@ assets/
     Anton-Regular.ttf
     Hind-Medium.ttf
     DMMono-Regular.ttf
+    licenses/
+      Anton-OFL.txt
+      Montserrat-OFL.txt
+      Hind-OFL.txt
+      DMMono-OFL.txt
   logos/
     ccc-wide-orange.svg
     ccc-wide-leila.svg
@@ -28,6 +33,13 @@ assets/
     ccc-wide-deep-teal.svg
     ccc-wide-bright-teal.svg
     ccc-wide-soft-mint.svg
+  post-references/
+    ccc-post-reference-1.svg
+    ccc-post-reference-2.svg
+    ccc-post-reference-3.svg
+    ccc-post-reference-4.svg
 ```
+
+`post-references/` contains the SVG layout contracts from the brand guide. The social generator preserves their coordinates, icon paths, watermark crop, type slots, CTA placement, and footer geometry while replacing copy. Do not substitute generic icons or free-form layouts inside these reference systems.
 
 Use the MCP `audit_brand_assets` tool to verify which required files are present.
