@@ -19,7 +19,7 @@ The initial rules were extracted from `CCC_Brand_Guide_2026_5.pdf`:
 - Video subtitles: Montserrat Bold, 55-60pt, bottom-third safe-area placement
 - Policy outputs: primer, note, memo, coalition letter rules
 
-Official CCC SVG logo variants are included in `assets/logos`. Font binaries are not included, so final render machines still need the approved fonts installed or supplied through `CCC_BRAND_ASSET_DIR`.
+Official CCC SVG logo variants are included in `assets/logos`. The approved Montserrat, Anton, Hind, and DM Mono binaries and their licenses are included in `assets/fonts`; generated SVGs embed the faces they use so rendering does not depend on system font installation.
 
 ## Install
 
@@ -102,7 +102,22 @@ Returns an SVG draft for one of:
 - `cta`
 - `lower_third`
 
-The SVG uses only approved colors, font family names, and packaged logo SVGs. Install the official fonts on the rendering machine for final output.
+The SVG uses approved colors, embedded packaged font binaries, official logo geometry, and the actual cropped nested-C CCC mark from the selected reference. Social layouts are reference-locked: text is fitted into the original type slots without SVG `textLength` stretching. References 1, 2, and 4 use Anton for their display slots; reference 3 preserves its Montserrat Bold headline system and real megaphone paths. It supports `styleVariant`:
+
+- `auto`
+- `navy_poster`
+- `petition_push`
+- `orange_alert`
+- `statistic_card`
+- `contrast_cards`
+
+Use `auto` unless you need a specific reference composition. `auto` routes comparisons to `contrast_cards`, petition/policymaker/lawmaker/mandate asks to `petition_push`, statistics to `statistic_card`, policy alerts to `orange_alert`, and general posts to `navy_poster`.
+
+The reference mapping is fixed: `navy_poster` uses reference 1, `statistic_card` uses reference 2, `petition_push` and `orange_alert` use reference 3, and `contrast_cards` uses reference 4. Reference-locked outputs preserve variation 0 geometry; select another `styleVariant` for a genuinely different composition. `leadIn` supplies the two-line reference-3 prompt above the main headline, while `comparisonLeft` and `comparisonRight` supply the two positions in `contrast_cards`.
+
+### `brand://ccc/post-references`
+
+Exposes the packaged SVG post references from the brand guide as MCP resources. These are layout contracts: generated wording changes, but their density, type slots, hierarchy, watermark treatment, icons, CTA placement, and official logo geometry remain fixed.
 
 ### `audit_brand_assets`
 
@@ -122,7 +137,9 @@ It checks:
 - approved CCC palette colors only
 - disciplined color count and tertiary accent usage
 - `1080x1350` social dimensions
-- CCC guide-style social composition markers, including the ring watermark
+- reference-system and reference-exact layout metadata
+- the cropped nested-C CCC mark geometry with an approved semi-transparent gradient; concentric circles fail validation
+- variant-specific structure such as `petition_push` action bands, stacked headline blocks, petition markers, large statistic markers, and compact contrast cards
 - large full-height diagonal split layouts that drift away from the post guide
 - weak large social headlines set in thin or regular Montserrat
 - official logo asset references
@@ -148,7 +165,7 @@ Recommended loop for generated SVGs:
 
 ## Assets
 
-Final outputs require official logo and font assets. This repo ships official SVG logo variants and an asset manifest. It does not ship font binaries.
+Final outputs require official logo and font assets. This repo ships the official SVG logo variants, approved font binaries, font licenses, and an asset manifest.
 
 Expected local structure:
 
@@ -211,9 +228,12 @@ This server treats the brand guide as a contract:
 - generated SVGs must pass `validate_svg_artifact` before handoff
 - social dimensions outside `1080x1350` are warnings unless explicitly intended
 - final social graphics should use no more than five unique brand colors and no more than one tertiary accent color
-- social posts must follow the CCC guide-style poster system: dominant navy or orange field, oversized condensed uppercase headline, orange emphasis, subtle CCC ring watermark, small label, footer URL, and official logo
-- large social headlines must use Anton Regular at poster scale or Montserrat Bold blocks
-- large split-screen comparison layouts, full-height diagonal divider wedges, and serif display headlines are violations
+- social posts must follow the mapped reference system with its native display font, the actual cropped CCC mark silhouette, small label, footer URL, icons, and official logo
+- petition, policymaker, lawmaker, mandate, and direct advocacy asks should use `petition_push` or `orange_alert`, not a generic clean navy poster
+- social outputs should vary across `navy_poster`, `petition_push`, `orange_alert`, `statistic_card`, and `contrast_cards` instead of repeatedly using the same clean navy layout
+- packaged SVG post references are available through `brand://ccc/post-references` and are the locked geometry for generated social posts
+- display copy must fit the native reference slots without `textLength` stretching; references 1, 2, and 4 use Anton, while reference 3 uses Montserrat Bold
+- large split-screen layouts are reserved for `contrast_cards`; full-height diagonal divider wedges and serif display headlines are violations
 - social copy that exceeds layout limits is a violation in `final` mode and a warning in `draft` mode
 - policy memo illustrations are forbidden by the guide
 

@@ -6,3 +6,5 @@ social-media-template-assets/
 .DS_Store
 tmp/
 *.log
+outputs/
+.rendered_variants/

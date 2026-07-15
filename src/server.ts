@@ -7,8 +7,11 @@ import {
   brand,
   createGenerationPrompt,
   createSocialSvg,
+  getPostReferenceAssets,
   getBrandSection,
+  postReferencePaths,
   qaSocialLayout,
+  socialStyleVariants,
   socialTemplates,
   validateSvgArtifact,
   validateSpec,
@@ -16,7 +19,7 @@ import {
 
 const server = new McpServer({
   name: "ccc-brand-mcp",
-  version: "0.1.0",
+  version: "0.3.0",
 });
 
 const sectionSchema = z
@@ -61,10 +64,35 @@ server.resource("ccc-social-templates", "brand://ccc/social-templates", async (u
         canonicalSize: brand.social.canonicalSize,
         requiredFooter: brand.social.requiredFooter,
         templates: socialTemplates,
+        styleVariants: socialStyleVariants,
+        postReferences: postReferencePaths,
       }),
     },
   ],
 }));
+
+server.resource("ccc-post-references", "brand://ccc/post-references", async (uri) => {
+  const references = getPostReferenceAssets();
+  return {
+    contents: [
+      {
+        uri: uri.href,
+        mimeType: "application/json",
+        text: asText({
+          usage: "Reference-locked layout contracts. Preserve their geometry, typography slots, icons, watermark crop, CTA placement, and footer structure while replacing the wording.",
+          references: references.map(({ svg, ...reference }) => reference),
+        }),
+      },
+      ...references
+        .filter((reference) => reference.exists && reference.svg)
+        .map((reference) => ({
+          uri: `${uri.href}/${reference.fileName.split("/").pop()}`,
+          mimeType: "image/svg+xml",
+          text: reference.svg ?? "",
+        })),
+    ],
+  };
+});
 
 server.tool(
   "get_brand_guidelines",
@@ -154,23 +182,28 @@ server.tool(
 
 server.tool(
   "create_social_svg",
-  "Generate a strict CCC-branded SVG layout for quick social or lower-third design drafts. Uses packaged official SVG logos by default.",
+  "Generate a CCC-branded SVG from one of four reference-locked social templates. The tool preserves the supplied reference geometry, real icon paths, watermark crop, type slots, action band, and footer; it replaces copy without textLength stretching.",
   {
     template: z.enum(["policy_alert", "statistic", "quote", "cta", "lower_third"]).default("policy_alert"),
+    styleVariant: z.enum(["auto", "navy_poster", "petition_push", "orange_alert", "statistic_card", "contrast_cards"]).default("auto").describe("Optional CCC guide variant. auto maps petition/lawmaker asks to petition_push, policy alerts to orange_alert, statistics to statistic_card, and most other posts to navy_poster."),
     headline: z.string().min(1).max(120),
+    leadIn: z.string().max(60).optional().describe("Optional reference-3 lead-in above the main headline, for example 'TELL YOUR LAWMAKERS:'. Omit to use that reference-locked default."),
     kicker: z.string().max(40).optional(),
     body: z.string().max(220).optional(),
     cta: z.string().max(80).optional(),
+    comparisonLeft: z.string().max(120).optional().describe("Optional left-side copy for contrast_cards. Use for the BAD/NO policy position."),
+    comparisonRight: z.string().max(120).optional().describe("Optional right-side copy for contrast_cards. Use for the GOOD/YES policy position."),
+    variation: z.number().int().min(0).max(2).optional().describe("Compatibility field. Reference-locked social outputs preserve variation 0 geometry; choose another styleVariant for genuine layout variety."),
     includeLogoPlaceholder: z.boolean().default(true),
     officialLogoHref: z.string().optional().describe("Optional href/path for an approved logo file listed in assets/manifest.json. Defaults to a packaged official SVG logo chosen for the background."),
     assetBasePath: z.string().optional().describe("Optional asset directory used to verify officialLogoHref and default logo assets."),
     mode: z.enum(["draft", "final"]).default("draft"),
   },
-  async ({ template, headline, kicker, body, cta, includeLogoPlaceholder, officialLogoHref, assetBasePath, mode }) => ({
+  async ({ template, styleVariant, headline, leadIn, kicker, body, cta, comparisonLeft, comparisonRight, variation, includeLogoPlaceholder, officialLogoHref, assetBasePath, mode }) => ({
     content: [
       {
         type: "text",
-        text: asText(createSocialSvg({ template, headline, kicker, body, cta, includeLogoPlaceholder, officialLogoHref, assetBasePath, mode })),
+        text: asText(createSocialSvg({ template, styleVariant, headline, leadIn, kicker, body, cta, comparisonLeft, comparisonRight, variation, includeLogoPlaceholder, officialLogoHref, assetBasePath, mode })),
       },
     ],
   }),
