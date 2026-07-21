@@ -1,0 +1,132 @@
+{
+  "styleVariant": "navy_poster",
+  "referenceSystem": "reference-1",
+  "validation": {
+    "ok": true,
+    "mode": "final",
+    "violations": [],
+    "warnings": [],
+    "fontChecks": [
+      {
+        "input": "Anton Regular",
+        "family": "Anton",
+        "weight": "Regular",
+        "ok": true
+      },
+      {
+        "input": "Montserrat Bold",
+        "family": "Montserrat",
+        "weight": "Bold",
+        "ok": true
+      },
+      {
+        "input": "Montserrat Medium",
+        "family": "Montserrat",
+        "weight": "Medium",
+        "ok": true
+      },
+      {
+        "input": "DM Mono Regular",
+        "family": "DM Mono",
+        "weight": "Regular",
+        "ok": true
+      }
+    ],
+    "logoCheck": {
+      "input": "logos/ccc-wide-orange.svg",
+      "ok": true,
+      "approvedPath": "logos/ccc-wide-orange.svg",
+      "exists": true
+    },
+    "colorHarmony": {
+      "ok": true,
+      "violations": [],
+      "warnings": [],
+      "uniqueColors": [
+        "#22264E",
+        "#E95C1F",
+        "#FFF7EF",
+        "#9BD8C7",
+        "#6F789B"
+      ],
+      "tertiaryColors": [
+        "#9BD8C7"
+      ]
+    }
+  },
+  "artifactValidation": {
+    "ok": true,
+    "mode": "final",
+    "violations": [],
+    "warnings": [],
+    "widthPx": 1080,
+    "heightPx": 1350,
+    "fonts": [
+      "DM Mono",
+      "Anton",
+      "Montserrat"
+    ],
+    "colors": [
+      "#22264E",
+      "#6F789B",
+      "#9BD8C7",
+      "#E95C1F",
+      "#FFF7EF"
+    ],
+    "colorHarmony": {
+      "ok": true,
+      "violations": [],
+      "warnings": [],
+      "uniqueColors": [
+        "#22264E",
+        "#6F789B",
+        "#9BD8C7",
+        "#E95C1F",
+        "#FFF7EF"
+      ],
+      "tertiaryColors": [
+        "#9BD8C7"
+      ]
+    },
+    "placeholderLogo": false,
+    "logoRefs": [
+      "logos/ccc-wide-orange.svg"
+    ],
+    "logoChecks": [
+      {
+        "input": "logos/ccc-wide-orange.svg",
+        "ok": true,
+        "approvedPath": "logos/ccc-wide-orange.svg",
+        "exists": true
+      }
+    ],
+    "referenceExact": false,
+    "guideStyleWatermark": true,
+    "legacyCircleWatermark": false,
+    "guideStyleVariant": true,
+    "styleVariant": "navy_poster",
+    "referenceSystem": "reference-1",
+    "variation": 0,
+    "density": "medium",
+    "validDensity": true,
+    "hasActionBand": false,
+    "hasStackedBlocks": false,
+    "hasPetitionMarker": false,
+    "hasLargeStat": false,
+    "hasContrastCards": false,
+    "hasQuotePortrait": false,
+    "hasQuoteAttribution": false,
+    "hasQuoteWatermark": false,
+    "hasQuoteReferencePalette": false,
+    "hasSeparatedQuoteZones": false,
+    "hasProportionalQuotePortrait": false,
+    "hasUncroppedQuotePortrait": false,
+    "hasEmbeddedQuotePortrait": false,
+    "hasQuoteOrangeEmphasis": false,
+    "badSocialSplitComposition": false,
+    "posterScaleHeadline": true,
+    "frameFillingAnton": true,
+    "artificialTextStretch": false,
+    "weakLargeSocialType": false
+  }
+}

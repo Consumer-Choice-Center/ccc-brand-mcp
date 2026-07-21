@@ -52,6 +52,39 @@ const samples = [
       comparisonRight: "Regulate risk. Protect choice.",
     },
   },
+  {
+    id: "reference-5-quote-post",
+    input: {
+      template: "quote",
+      styleVariant: "quote_post",
+      variation: 0,
+      person: "yael",
+      headline: "Prohibition does not make products disappear. It makes them unregulated.",
+      emphasis: "unregulated",
+    },
+  },
+  {
+    id: "reference-5-quote-post-long",
+    input: {
+      template: "quote",
+      styleVariant: "quote_post",
+      variation: 0,
+      person: "david",
+      headline: "New York's housing crisis is fundamentally a supply problem caused by restrictive zoning and burdensome permitting, not pricing software.",
+      emphasis: "software",
+    },
+  },
+  {
+    id: "reference-5-quote-post-fabio",
+    input: {
+      template: "quote",
+      styleVariant: "quote_post",
+      variation: 0,
+      person: "fabio",
+      headline: "Consumers deserve clear information, real choices, and the freedom to decide for themselves.",
+      emphasis: "real choices",
+    },
+  },
 ];
 
 await mkdir(outputDirectory, { recursive: true });

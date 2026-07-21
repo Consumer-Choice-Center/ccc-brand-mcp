@@ -27,6 +27,21 @@
     "post-references/ccc-post-reference-1.svg",
     "post-references/ccc-post-reference-2.svg",
     "post-references/ccc-post-reference-3.svg",
-    "post-references/ccc-post-reference-4.svg"
+    "post-references/ccc-post-reference-4.svg",
+    "post-references/ccc-quote-post-template.svg"
+  ],
+  "onePagerReferences": [
+    "one-pager-references/ccc-tariffs-american-home.svg",
+    "one-pager-references/ccc-cooling-europe.svg"
+  ],
+  "quotePeoplePortraits": [
+    "quote-people/bill-wirtz.svg",
+    "quote-people/david-clement.svg",
+    "quote-people/emil-panzaru.svg",
+    "quote-people/fabio-fernandes.svg",
+    "quote-people/fred-roeder.svg",
+    "quote-people/stephen-kent.svg",
+    "quote-people/yael-ossowski.svg",
+    "quote-people/zoltan-kesz.svg"
   ]
 }
