@@ -371,7 +371,7 @@
         "heightPx": 1535.49,
         "aspectRatio": "1186.51:1535.49"
       },
-      "referenceUsage": "The two packaged one-pager SVGs are strict production templates. Generated one-pagers must begin from one of them and preserve its canvas, section boundaries, coordinates, typography hierarchy, brush shapes, arrows, card geometry, background mark, footer, source line, and logo geometry.",
+      "referenceUsage": "The two populated one-pager SVGs are visual references only. Generated one-pagers must begin from the MCP-provided clean working shell, which removes all original text and raster images while preserving the reference canvas, section boundaries, coordinates, typography hierarchy, brush shapes, normalized arrows, card geometry, background mark, footer, and logo geometry.",
       "minimumGeometryRetention": 0.9,
       "templates": [
         {
@@ -408,9 +408,11 @@
         "central contextual object illustration and its supporting component/callout cutouts only"
       ],
       "illustrationRules": [
+        "Use only the clean working SVG returned by create_one_pager; never append new content to the populated visual reference.",
+        "The clean shell must contain no original text or raster images, and the final file must preserve data-ccc-clean-template=\"mutable-content-cleared-v1\".",
         "Generate the physical object most directly connected to the policy context, not an abstract metaphor.",
         "Match the references' photorealistic editorial cutout/cutaway style on a transparent background with crisp edges.",
-        "Use one dominant central object and only the supporting objects required by the selected reference composition.",
+        "Use exactly one dominant self-contained central object composite; any supporting cutouts must be included within that transparent composite rather than added as loose overlapping images.",
         "Preserve the original illustration boxes, scale hierarchy, and connector positions; do not move text to accommodate an image.",
         "Never overlap illustrations with headline, callout, statistic, conclusion, source, or logo text.",
         "Embed every raster illustration directly in the SVG as a base64 data:image URI through SVG 1.1 xlink:href; never leave external file links or use the browser-oriented SVG 2 href attribute.",
@@ -437,6 +439,8 @@
         "Use one font family and one weight consistently for every repeated component role.",
         "Every text-bearing component must declare data-ccc-component, data-ccc-bounds, and data-ccc-text-inset.",
         "Every text-bearing component must also declare a measured data-ccc-text-safe-box contained inside its component bounds; text may not extend outside that box or into another component.",
+        "Every visible text line must be a direct x/y-positioned text element inside a real data-ccc-component group; hidden placeholder roles, transformed text, tspans, textLength, and lengthAdjust are forbidden.",
+        "The validator measures rendered text boxes and rejects text-to-text or text-to-illustration overlap even when component metadata claims the layout is safe.",
         "Keep at least a 24-unit gutter between component bounds; components may not touch or overlap.",
         "Align text to a shared inset and baseline grid inside each brush panel, card, callout, banner, and takeaway box.",
         "Build each connector as a tangent-aligned double-ended arrow: one clean 3-unit shaft, 6 7 dash rhythm, and two compact filled vector arrowheads that physically meet the shaft. Do not use SVG marker-start, marker-mid, or marker-end, and never cross a text-safe box."
