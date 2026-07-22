@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="2480" height="3508" viewBox="0 0 2480 3508"
+     role="img" aria-labelledby="cover-title cover-desc"
+     data-ccc-asset-type="policyPrimer" data-ccc-brand-year="2026">
+  <title id="cover-title">World Airport Index 2026 — Consumer Choice Center policy paper cover</title>
+  <desc id="cover-desc">A bold A4 cover in the CCC palette, combining airport wayfinding, global route arcs, and runway geometry.</desc>
+
+  <defs>
+    <style>
+      @font-face {
+        font-family: "Montserrat";
+        src: url("../assets/fonts/Montserrat-Regular.ttf") format("truetype");
+        font-style: normal;
+        font-weight: 400;
+      }
+      @font-face {
+        font-family: "Montserrat";
+        src: url("../assets/fonts/Montserrat-SemiBold.ttf") format("truetype");
+        font-style: normal;
+        font-weight: 600;
+      }
+      @font-face {
+        font-family: "Montserrat";
+        src: url("../assets/fonts/Montserrat-Bold.ttf") format("truetype");
+        font-style: normal;
+        font-weight: 700;
+      }
+      @font-face {
+        font-family: "DM Mono";
+        src: url("../assets/fonts/DMMono-Regular.ttf") format("truetype");
+        font-style: normal;
+        font-weight: 400;
+      }
+      .title { font-family: "Montserrat"; font-weight: 700; }
+      .body { font-family: "Montserrat"; font-weight: 400; }
+      .label { font-family: "DM Mono"; font-weight: 400; letter-spacing: 8px; }
+    </style>
+    <clipPath id="lower-field-clip">
+      <path d="M0 2350 L2480 1835 L2480 3508 L0 3508 Z"/>
+    </clipPath>
+    <clipPath id="globe-clip">
+      <circle cx="1825" cy="2525" r="710"/>
+    </clipPath>
+  </defs>
+
+  <!-- Warm editorial base -->
+  <rect width="2480" height="3508" fill="#FFF7EF"/>
+  <rect x="0" y="0" width="54" height="2350" fill="#E95C1F"/>
+
+  <!-- Approved wide brand mark -->
+  <g data-ccc-logo-href="logos/ccc-wide-leila.svg">
+    <image href="../assets/logos/ccc-wide-leila.svg"
+           xlink:href="../assets/logos/ccc-wide-leila.svg"
+           x="160" y="150" width="540" height="208" preserveAspectRatio="xMinYMin meet"/>
+  </g>
+
+  <!-- Publication metadata -->
+  <g aria-label="Publication metadata">
+    <rect x="1700" y="170" width="620" height="112" fill="#22264E"/>
+    <text x="1760" y="243" class="label" font-family="DM Mono" font-weight="400" font-size="35" fill="#FFF7EF">POLICY PAPER</text>
+    <text x="2315" y="356" class="label" font-family="DM Mono" font-weight="400" font-size="30" text-anchor="end" fill="#6F789B">JULY / 2026</text>
+  </g>
+
+  <!-- Airport-code wayfinding line -->
+  <g aria-label="World route index">
+    <line x1="160" y1="560" x2="2320" y2="560" stroke="#E7ECF4" stroke-width="8"/>
+    <circle cx="160" cy="560" r="20" fill="#E95C1F"/>
+    <circle cx="717" cy="560" r="12" fill="#6F789B"/>
+    <circle cx="1265" cy="560" r="12" fill="#6F789B"/>
+    <circle cx="1813" cy="560" r="12" fill="#6F789B"/>
+    <circle cx="2320" cy="560" r="20" fill="#22264E"/>
+    <text x="160" y="518" class="label" font-family="DM Mono" font-weight="400" font-size="27" fill="#6F789B">GLOBAL</text>
+    <text x="2320" y="518" class="label" font-family="DM Mono" font-weight="400" font-size="27" text-anchor="end" fill="#6F789B">INDEX / 26</text>
+  </g>
+
+  <!-- Main title -->
+  <g aria-label="World Airport Index 2026">
+    <text x="160" y="990" class="title" font-family="Montserrat" font-weight="700" font-size="230" letter-spacing="-10" fill="#22264E">WORLD</text>
+    <text x="150" y="1298" class="title" font-family="Montserrat" font-weight="700" font-size="286" letter-spacing="-15" fill="#E95C1F">AIRPORT</text>
+    <text x="160" y="1586" class="title" font-family="Montserrat" font-weight="700" font-size="260" letter-spacing="-13" fill="#22264E">INDEX</text>
+
+    <rect x="1728" y="1393" width="590" height="250" fill="#E95C1F"/>
+    <text x="2023" y="1578" class="title" font-family="Montserrat" font-weight="700" font-size="196" text-anchor="middle" letter-spacing="-7" fill="#FFF7EF">2026</text>
+  </g>
+
+  <g aria-label="Policy paper subtitle">
+    <rect x="160" y="1765" width="126" height="12" fill="#E95C1F"/>
+    <text x="160" y="1870" class="body" font-family="Montserrat" font-weight="400" font-size="52" fill="#22264E">A global benchmark of passenger experience,</text>
+    <text x="160" y="1948" class="body" font-family="Montserrat" font-weight="400" font-size="52" fill="#22264E">choice, and airport competitiveness.</text>
+  </g>
+
+  <!-- Angular lower field: terminal/runway geometry -->
+  <path d="M0 2350 L2480 1835 L2480 3508 L0 3508 Z" fill="#22264E"/>
+  <g clip-path="url(#lower-field-clip)">
+    <!-- Abstract globe / route grid -->
+    <circle cx="1825" cy="2525" r="710" fill="none" stroke="#6F789B" stroke-width="18" opacity="0.34"/>
+    <ellipse cx="1825" cy="2525" rx="325" ry="710" fill="none" stroke="#6F789B" stroke-width="16" opacity="0.30"/>
+    <ellipse cx="1825" cy="2525" rx="625" ry="710" fill="none" stroke="#6F789B" stroke-width="16" opacity="0.22"/>
+    <path d="M1115 2525 H2535" fill="none" stroke="#6F789B" stroke-width="16" opacity="0.28"/>
+    <path d="M1190 2220 C1505 2365 2145 2365 2460 2220" fill="none" stroke="#6F789B" stroke-width="16" opacity="0.26"/>
+    <path d="M1190 2830 C1505 2685 2145 2685 2460 2830" fill="none" stroke="#6F789B" stroke-width="16" opacity="0.26"/>
+
+    <!-- Indexed air routes -->
+    <path d="M1090 2865 C1300 2300 1925 2070 2490 2265" fill="none" stroke="#E95C1F" stroke-width="22"/>
+    <path d="M990 2675 C1380 2500 1740 2480 2255 2650" fill="none" stroke="#FFF7EF" stroke-width="10" stroke-dasharray="28 30" opacity="0.72"/>
+    <circle cx="1090" cy="2865" r="35" fill="#E95C1F"/>
+    <circle cx="1642" cy="2254" r="24" fill="#FFF7EF"/>
+    <circle cx="2237" cy="2203" r="35" fill="#E95C1F"/>
+
+    <!-- Runway perspective -->
+    <path d="M350 3508 L1065 2160 L1358 2099 L930 3508 Z" fill="#E7ECF4" opacity="0.16"/>
+    <path d="M665 3508 L1120 2172" fill="none" stroke="#FFF7EF" stroke-width="26" stroke-dasharray="92 75" opacity="0.86"/>
+    <path d="M394 3508 L1065 2160" fill="none" stroke="#E95C1F" stroke-width="20"/>
+    <path d="M905 3508 L1358 2099" fill="none" stroke="#E95C1F" stroke-width="20"/>
+
+    <!-- Geometric aircraft pointer -->
+    <g transform="translate(1140 2360) rotate(-22)">
+      <path d="M0 55 L285 0 L365 30 L238 87 L355 166 L292 191 L156 112 L38 140 L78 216 L32 228 L-30 138 L-88 151 L-108 115 L-38 78 L-8 -15 L42 -25 Z" fill="#FFF7EF"/>
+      <rect x="-92" y="102" width="46" height="18" fill="#E95C1F"/>
+    </g>
+  </g>
+
+  <!-- Lower information band -->
+  <g aria-label="Publisher information">
+    <rect x="0" y="3268" width="2480" height="240" fill="#E95C1F"/>
+    <text x="160" y="3380" class="label" font-family="DM Mono" font-weight="400" font-size="31" fill="#22264E">CONSUMER CHOICE CENTER</text>
+    <text x="160" y="3443" class="body" font-family="Montserrat" font-size="34" font-weight="600" fill="#22264E">consumerchoicecenter.org</text>
+
+    <text x="2320" y="3378" class="label" font-family="DM Mono" font-weight="400" font-size="28" text-anchor="end" fill="#22264E">YOUR CHOICE</text>
+    <text x="2320" y="3443" class="label" font-family="DM Mono" font-weight="400" font-size="28" text-anchor="end" fill="#22264E">OUR FIGHT</text>
+  </g>
+</svg>

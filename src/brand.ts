@@ -7,7 +7,22 @@ export type FontCheck = { input: string; family?: string; weight?: string; ok: b
 
 type LogoCheck = { input?: string; ok: boolean; approvedPath?: string; exists?: boolean; message?: string };
 type LogoSurface = "dark" | "orange" | "light";
-export type SocialStyleVariant = "auto" | "navy_poster" | "petition_push" | "orange_alert" | "statistic_card" | "contrast_cards";
+export type SocialStyleVariant = "auto" | "navy_poster" | "petition_push" | "orange_alert" | "statistic_card" | "contrast_cards" | "quote_post";
+export const onePagerTemplateIds = ["material_cost_chain", "access_barriers"] as const;
+export type OnePagerTemplateId = (typeof onePagerTemplateIds)[number];
+export type OnePagerTemplateSelection = "auto" | OnePagerTemplateId;
+export const quotePersonIds = ["bill", "david", "emil", "fabio", "fred", "stephen", "yael", "zoltan"] as const;
+export type QuotePersonId = (typeof quotePersonIds)[number];
+export type QuotePerson = {
+  id: QuotePersonId;
+  fullName: string;
+  title: string;
+  portraitFile: string;
+  portraitFit: "xMaxYMax meet";
+  portraitReferenceWidth: number;
+  portraitReferenceMaxWidth: number;
+  aliases: string[];
+};
 
 const CCC_MARK_PATH = "M514.19,374.8a135.7,135.7,0,0,1-9.67,9.68A145,145,0,0,1,309,384.2a133.65,133.65,0,0,1-9.68-9.67,145.1,145.1,0,0,1,0-195.27,133.86,133.86,0,0,1,9.68-9.68l9.67,9.68a135.72,135.72,0,0,0-9.67,9.67,131.09,131.09,0,0,0,0,175.87,135.63,135.63,0,0,0,9.67,9.67,130.88,130.88,0,0,0,176.14.33l-18.36-18.37a105,105,0,0,1-139.41,0,89.17,89.17,0,0,1-9.67-9.67,105.12,105.12,0,0,1,.32-139.08,90.18,90.18,0,0,1,9.68-9.67,105.1,105.1,0,0,1,139.08-.33,68,68,0,0,1,9.67,9.67L476.42,217l-36.14,36.14a44.88,44.88,0,0,0-9.68-9.68,40.21,40.21,0,0,0-23.89-7.43,40.77,40.77,0,0,0-23.89,7.76,45.24,45.24,0,0,0-9.67,9.67,41.48,41.48,0,0,0-7.76,23.89,43.67,43.67,0,0,0,7.43,23.89A38.71,38.71,0,0,0,382.5,311l-9.68,9.68a68.13,68.13,0,0,1-9.68-9.68,55.48,55.48,0,0,1-11.31-33.57,53.72,53.72,0,0,1,11.59-33.56,67.54,67.54,0,0,1,9.67-9.68,54.92,54.92,0,0,1,67.14-.27l26.45-26.46a92,92,0,0,0-120,0,67.54,67.54,0,0,0-9.67,9.68,92,92,0,0,0,0,120,68,68,0,0,0,9.67,9.67,92,92,0,0,0,120.38.33,67.1,67.1,0,0,0,9.68-9.68l9.68,9.68,18.36,18.37Z";
 
@@ -19,6 +34,18 @@ function readJson<T>(path: string) {
 
 export const brand = readJson<any>(resolve(__dirname, "../data/ccc-brand.json"));
 export const assetManifest = readJson<any>(resolve(__dirname, "../assets/manifest.json"));
+const quotePostConfig = brand.visualSystem.socialPosts.quotePost;
+const onePagerConfig = brand.visualSystem.onePagers;
+export const quotePeople: QuotePerson[] = quotePostConfig.people;
+export const onePagerTemplates = onePagerConfig.templates as Array<{
+  id: OnePagerTemplateId;
+  label: string;
+  referenceAsset: string;
+  useFor: string;
+  titleStyle: string;
+  illustrationGrammar: string;
+}>;
+export const onePagerReferencePaths: string[] = assetManifest.onePagerReferences ?? [];
 
 export const socialTemplates = {
   policy_alert: { label: "POLICY ALERT", background: "autumnOrange", accent: "autumnOrange", text: "baseWhite" },
@@ -34,6 +61,7 @@ export const socialStyleVariants = {
   orange_alert: "Reference 3 system: Autumn Orange field, tilted issue label, oversized Anton hierarchy, dark action band and footer, official orange logo, cropped gradient CCC mark.",
   statistic_card: "Reference 2 system: Leila field, monumental Anton statistic, bold supporting statement, compact evidence callout, bottom logo, cropped gradient CCC mark.",
   contrast_cards: "Reference 4 system: controlled Leila/Warm White split, paired Anton BAD/GOOD or NO/YES headlines, compact comparison cards, official logo, cropped gradient CCC marks.",
+  quote_post: "Reference 5 system: supplied 1080x1350 quote template with its exact deep-night field, visible cropped CCC watermark, original Anton line rhythm, mandatory Autumn Orange emphasis, and one fully embedded approved portrait shown at a verified person-specific scale without distortion or cropping.",
 } as const;
 export const postReferencePaths: string[] = assetManifest.postReferences ?? [];
 
@@ -61,7 +89,12 @@ export function getBrandSection(section: string) {
 }
 
 function norm(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return value.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+export function resolveQuotePerson(value: string) {
+  const key = norm(value);
+  return quotePeople.find((person) => [person.id, person.fullName, ...person.aliases].some((alias) => norm(alias) === key));
 }
 
 function normalizeHex(value: string) {
@@ -125,12 +158,18 @@ function analyzeCopy(text: string | undefined, maxChars: number, maxLines: numbe
 export function qaSocialLayout(input: { template: keyof typeof socialTemplates; headline: string; body?: string; cta?: string; mode: ValidationMode }) {
   const rules = brand.visualSystem.socialPosts;
   const isLowerThird = input.template === "lower_third";
-  const headline = analyzeCopy(input.headline, isLowerThird ? 34 : rules.headlineMaxCharactersPerLine, rules.maxHeadlineLines);
+  const isQuote = input.template === "quote";
+  const headline = analyzeCopy(
+    input.headline,
+    isLowerThird ? 34 : isQuote ? 22 : rules.headlineMaxCharactersPerLine,
+    isQuote ? quotePostConfig.quoteMaxLines : rules.maxHeadlineLines,
+  );
   const body = analyzeCopy(input.body, isLowerThird ? 68 : rules.bodyMaxCharactersPerLine, rules.maxBodyLines);
   const cta = analyzeCopy(input.cta ?? brand.social.requiredFooter, rules.ctaMaxCharactersPerLine, 1);
   const violations: string[] = [];
   const warnings: string[] = [];
   if (headline.overLimit) severityPush(input.mode, violations, warnings, "Headline exceeds CCC social layout limits and may be clipped or overcrowded.");
+  if (isQuote && input.headline.trim().length > quotePostConfig.quoteMaxCharacters) severityPush(input.mode, violations, warnings, `Quote exceeds the ${quotePostConfig.quoteMaxCharacters}-character quote-template limit.`);
   if (body.overLimit) severityPush(input.mode, violations, warnings, "Body copy exceeds CCC social layout limits and may be clipped or overcrowded.");
   if (!isLowerThird && cta.overLimit) severityPush(input.mode, violations, warnings, "CTA/footer exceeds the one-line footer limit.");
   return { ok: violations.length === 0, violations, warnings, headline, body, cta };
@@ -176,11 +215,49 @@ export function auditAssets(basePath?: string) {
   });
   const missingFonts = fonts.filter((font: any) => !font.ok).map((font: any) => font.family);
   const missingLogos = logos.filter((logo: any) => !logo.ok).map((logo: any) => logo.id);
+  const quoteTemplate = {
+    fileName: quotePostConfig.templateAsset,
+    manifestListed: assetManifest.postReferences.includes(quotePostConfig.templateAsset),
+    path: resolve(base, quotePostConfig.templateAsset),
+    exists: existsSync(resolve(base, quotePostConfig.templateAsset)),
+  };
+  const quotePortraits = quotePeople.map((person) => ({
+    id: person.id,
+    fullName: person.fullName,
+    fileName: person.portraitFile,
+    manifestListed: assetManifest.quotePeoplePortraits?.includes(person.portraitFile) ?? false,
+    path: resolve(base, person.portraitFile),
+    exists: existsSync(resolve(base, person.portraitFile)),
+  }));
+  const missingQuotePeople = quotePortraits.filter((portrait) => !portrait.manifestListed || !portrait.exists).map((portrait) => portrait.id);
+  const onePagerReferences = onePagerTemplates.map((template) => ({
+    id: template.id,
+    fileName: template.referenceAsset,
+    manifestListed: onePagerReferencePaths.includes(template.referenceAsset),
+    path: resolve(base, template.referenceAsset),
+    exists: existsSync(resolve(base, template.referenceAsset)),
+  }));
+  const missingOnePagerReferences = onePagerReferences.filter((reference) => !reference.manifestListed || !reference.exists).map((reference) => reference.id);
   const manifestMissingFromBrand = {
     fonts: assetManifest.requiredFonts.filter((fileName: string) => !brand.assets.requiredFonts.some((font: any) => font.fileNames.includes(fileName))),
     logos: assetManifest.requiredLogos.filter((fileName: string) => !brand.assets.requiredLogos.some((logo: any) => logo.fileNames.includes(fileName))),
+    quotePeople: (assetManifest.quotePeoplePortraits ?? []).filter((fileName: string) => !quotePeople.some((person) => person.portraitFile === fileName)),
+    onePagers: onePagerReferencePaths.filter((fileName: string) => !onePagerTemplates.some((template) => template.referenceAsset === fileName)),
   };
-  return { ok: missingFonts.length === 0 && missingLogos.length === 0 && manifestMissingFromBrand.fonts.length === 0 && manifestMissingFromBrand.logos.length === 0, basePath: base, missingFonts, missingLogos, manifestMissingFromBrand, fonts, logos };
+  return {
+    ok: missingFonts.length === 0 && missingLogos.length === 0 && missingQuotePeople.length === 0 && missingOnePagerReferences.length === 0 && quoteTemplate.manifestListed && quoteTemplate.exists && manifestMissingFromBrand.fonts.length === 0 && manifestMissingFromBrand.logos.length === 0 && manifestMissingFromBrand.quotePeople.length === 0 && manifestMissingFromBrand.onePagers.length === 0,
+    basePath: base,
+    missingFonts,
+    missingLogos,
+    missingQuotePeople,
+    missingOnePagerReferences,
+    manifestMissingFromBrand,
+    fonts,
+    logos,
+    quoteTemplate,
+    quotePortraits,
+    onePagerReferences,
+  };
 }
 
 export function getPostReferenceAssets(basePath?: string) {
@@ -193,6 +270,21 @@ export function getPostReferenceAssets(basePath?: string) {
       path,
       exists,
       role: "reference-locked layout contract; preserve its geometry while replacing copy",
+      svg: exists ? readFileSync(path, "utf8") : undefined,
+    };
+  });
+}
+
+export function getOnePagerReferenceAssets(basePath?: string) {
+  const base = getAssetBase(basePath);
+  return onePagerTemplates.map((template) => {
+    const path = resolve(base, template.referenceAsset);
+    const exists = existsSync(path);
+    return {
+      ...template,
+      path,
+      exists,
+      role: "strict one-pager layout contract; preserve every fixed region while replacing copy and contextual illustrations only",
       svg: exists ? readFileSync(path, "utf8") : undefined,
     };
   });
@@ -212,12 +304,16 @@ function validateColorHarmony(colors: string[], mode: ValidationMode) {
   return { ok: violations.length === 0, violations, warnings, uniqueColors, tertiaryColors };
 }
 
-export function validateSpec(input: { colors?: string[]; fonts?: string[]; assetType?: string; mode?: ValidationMode; widthPx?: number; heightPx?: number; usesLogo?: boolean; hasOfficialLogoAsset?: boolean; officialLogoHref?: string; assetBasePath?: string; usesDecorativeElements?: boolean }) {
+export function validateSpec(input: { colors?: string[]; fonts?: string[]; assetType?: string; mode?: ValidationMode; widthPx?: number; heightPx?: number; usesLogo?: boolean; hasOfficialLogoAsset?: boolean; officialLogoHref?: string; assetBasePath?: string; usesDecorativeElements?: boolean; referenceExact?: boolean }) {
   const mode = input.mode ?? "final";
   const violations: string[] = [];
   const warnings: string[] = [];
   for (const color of input.colors ?? []) if (!resolveColor(color)) violations.push(`Color "${color}" is not in the CCC 2026 brand palette.`);
   const colorHarmony = validateColorHarmony(input.colors ?? [], mode);
+  if (input.referenceExact && colorHarmony.uniqueColors.length <= 6) {
+    colorHarmony.violations = colorHarmony.violations.filter((message) => !message.startsWith("Color system is overloaded:"));
+    colorHarmony.ok = colorHarmony.violations.length === 0;
+  }
   violations.push(...colorHarmony.violations);
   warnings.push(...colorHarmony.warnings);
   const fontChecks = (input.fonts ?? []).map(parseFontDescriptor);
@@ -257,7 +353,8 @@ function svgLogoRefs(svg: string) {
 }
 
 function svgDimension(svg: string, name: "width" | "height") {
-  return Number(svg.match(new RegExp(`\\b${name}\\s*=\\s*["']([0-9.]+)(?:px)?["']`, "i"))?.[1]) || undefined;
+  const rootTag = svg.match(/<svg\b[^>]*>/i)?.[0] ?? "";
+  return Number(rootTag.match(new RegExp(`(?:^|\\s)${name}\\s*=\\s*["']([0-9.]+)(?:px)?["']`, "i"))?.[1]) || undefined;
 }
 
 function attr(attrs: string, name: string) {
@@ -292,6 +389,9 @@ export function validateSvgArtifact(input: { svg: string; assetType?: "social" |
   const warnings: string[] = [];
   const referenceExact = /data-ccc-layout-lock=["']reference-exact["']/i.test(input.svg);
   if (!input.svg.trim().startsWith("<svg")) violations.push("Artifact is not a standalone SVG document.");
+  const illustratorCompatibility = validateIllustratorSvg({ svg: input.svg, mode });
+  violations.push(...illustratorCompatibility.violations);
+  warnings.push(...illustratorCompatibility.warnings);
   const fonts = svgFontFamilies(input.svg);
   for (const check of fonts.map(parseFontDescriptor)) if (!check.ok && check.message) violations.push(check.message);
   if (fonts.length === 0 && /<text[\s>]/i.test(input.svg)) severityPush(mode, violations, warnings, `SVG text must declare an approved CCC font family. Approved families: ${[...allowedFontFamilies].join(", ")}.`);
@@ -308,9 +408,9 @@ export function validateSvgArtifact(input: { svg: string; assetType?: "social" |
   const heightPx = svgDimension(input.svg, "height");
   const guideStyleWatermark = (referenceExact && /data-ccc-watermark-source=["']packaged-reference["']/i.test(input.svg)) || (/data-ccc-watermark=["']gradient-ccc-mark["']/i.test(input.svg) && /data-ccc-watermark-gradient=["']semi-transparent["']/i.test(input.svg) && /href=["']#ccc-watermark-mark["']/i.test(input.svg));
   const legacyCircleWatermark = /data-ccc-watermark=["']gradient-ring["']|CCC gradient ring watermark/i.test(input.svg);
-  const styleVariant = input.svg.match(/data-ccc-variant=["'](navy_poster|petition_push|orange_alert|statistic_card|contrast_cards)["']/i)?.[1];
+  const styleVariant = input.svg.match(/data-ccc-variant=["'](navy_poster|petition_push|orange_alert|statistic_card|contrast_cards|quote_post)["']/i)?.[1];
   const guideStyleVariant = Boolean(styleVariant);
-  const referenceSystem = input.svg.match(/data-ccc-reference-system=["'](reference-[1-4])["']/i)?.[1];
+  const referenceSystem = input.svg.match(/data-ccc-reference-system=["'](reference-[1-5])["']/i)?.[1];
   const variation = Number(input.svg.match(/data-ccc-variation=["']([0-2])["']/i)?.[1]);
   const density = input.svg.match(/data-ccc-density=["']([^"']+)["']/i)?.[1];
   const validDensity = Boolean(density && ["medium", "dense", "high"].includes(density));
@@ -319,13 +419,31 @@ export function validateSvgArtifact(input: { svg: string; assetType?: "social" |
   const hasPetitionMarker = /data-ccc-has-petition-marker=["']true["']|data-ccc-role=["']petition-marker["']/i.test(input.svg);
   const hasLargeStat = /data-ccc-has-large-stat=["']true["']/i.test(input.svg);
   const hasContrastCards = /data-ccc-has-contrast-cards=["']true["']|data-ccc-role=["']contrast-cards["']/i.test(input.svg);
+  const hasQuotePortrait = /data-ccc-has-quote-portrait=["']true["']|data-ccc-role=["']quote-portrait["']/i.test(input.svg);
+  const hasQuoteAttribution = /data-ccc-role=["']quote-attribution["']/i.test(input.svg);
+  const hasQuoteWatermark = /data-ccc-role=["']quote-watermark["'][^>]*data-ccc-watermark=["']cropped-ccc-mark["']/i.test(input.svg);
+  const hasQuoteReferencePalette = /(?:fill\s*:\s*|fill\s*=\s*["'])#15192e/i.test(input.svg) && /(?:stop-color\s*:\s*|stop-color\s*=\s*["'])#22274e/i.test(input.svg);
+  const quotePortraitBlock = input.svg.match(/<g\b[^>]*data-ccc-role=["']quote-portrait["'][^>]*>[\s\S]*?<\/g>/i)?.[0] ?? "";
+  const hasEmbeddedQuotePortrait = /\b(?:href|xlink:href)\s*=\s*["']data:image\/(?:png|jpe?g|webp);base64,/i.test(quotePortraitBlock) && /data-ccc-portrait-embedded=["']true["']/i.test(input.svg);
+  const hasUncroppedQuotePortrait = /preserveAspectRatio=["']xMaxYMax meet["']/i.test(quotePortraitBlock) && !/\bclip-path\s*=/i.test(quotePortraitBlock) && /data-ccc-portrait-policy=["']contain-no-crop["']/i.test(input.svg);
+  const quoteTextBottom = Number(input.svg.match(/data-ccc-quote-text-bottom=["']([0-9.]+)["']/i)?.[1]);
+  const portraitSafeTop = Number(input.svg.match(/data-ccc-portrait-safe-top=["']([0-9.]+)["']/i)?.[1]);
+  const quoteTextColumnRight = Number(input.svg.match(/data-ccc-quote-text-column-right=["']([0-9.]+)["']/i)?.[1]);
+  const portraitFaceSafeLeft = Number(input.svg.match(/data-ccc-portrait-face-safe-left=["']([0-9.]+)["']/i)?.[1]);
+  const portraitHeight = Number(input.svg.match(/data-ccc-portrait-height=["']([0-9.]+)["']/i)?.[1]);
+  const portraitWidth = Number(input.svg.match(/data-ccc-portrait-width=["']([0-9.]+)["']/i)?.[1]);
+  const hasSeparatedQuoteZones = /data-ccc-quote-safe-zones=["']reference-columns["']/i.test(input.svg) && Number.isFinite(quoteTextBottom) && quoteTextBottom <= 647.2 && Number.isFinite(quoteTextColumnRight) && quoteTextColumnRight === 520 && Number.isFinite(portraitFaceSafeLeft) && portraitFaceSafeLeft >= 490;
+  const hasProportionalQuotePortrait = /data-ccc-portrait-scale=["']reference-proportional["']/i.test(input.svg) && Number.isFinite(portraitSafeTop) && portraitSafeTop === 350 && Number.isFinite(portraitHeight) && portraitHeight === 1000 && Number.isFinite(portraitWidth) && portraitWidth >= 650 && portraitWidth <= 813;
+  const hasQuoteOrangeEmphasis = /<tspan\b[^>]*data-ccc-role=["']quote-emphasis["'][^>]*fill=["']#e95c1f["']/i.test(input.svg);
   const placeholderLogo = /CCC LOGO|USE OFFICIAL ASSET|logo placeholder|placeholder/i.test(input.svg);
   const logoRefs = svgLogoRefs(input.svg);
   const logoChecks = logoRefs.map((ref) => validateLogoHref(ref, input.assetBasePath));
   const styles = svgTextStyles(input.svg);
   const antonStyles = styles.filter((style) => style.family === "Anton");
-  const referenceScale = referenceExact ? (widthPx ?? brand.social.canonicalSize.widthPx) / 385.85 : 1;
-  const posterScaleHeadline = assetType === "social" && (referenceExact
+  const referenceScale = referenceExact && referenceSystem !== "reference-5" ? (widthPx ?? brand.social.canonicalSize.widthPx) / 385.85 : 1;
+  const posterScaleHeadline = assetType === "social" && (styleVariant === "quote_post"
+    ? styles.some((style) => style.family === "Anton" && style.size >= 48)
+    : referenceExact
     ? styles.some((style) => (style.family === "Anton" || (referenceSystem === "reference-3" && style.family === "Montserrat" && style.weight >= 700)) && style.size * referenceScale >= 110)
     : antonStyles.some((style) => style.size >= 110));
   const frameFillingAnton = assetType === "social" && (referenceExact
@@ -339,17 +457,24 @@ export function validateSvgArtifact(input: { svg: string; assetType?: "social" |
   if (assetType === "social") {
     const expected = brand.social.canonicalSize;
     if (widthPx !== expected.widthPx || heightPx !== expected.heightPx) severityPush(mode, violations, warnings, `SVG social dimensions are ${widthPx ?? "missing"}x${heightPx ?? "missing"}; CCC social output must be ${expected.widthPx}x${expected.heightPx}.`);
-    if (!guideStyleVariant) severityPush(mode, violations, warnings, "SVG social output must declare a CCC guide style variant: navy_poster, petition_push, orange_alert, statistic_card, or contrast_cards.");
+    if (!guideStyleVariant) severityPush(mode, violations, warnings, "SVG social output must declare a CCC guide style variant: navy_poster, petition_push, orange_alert, statistic_card, contrast_cards, or quote_post.");
     if (!validDensity) severityPush(mode, violations, warnings, "SVG social output must declare CCC composition density metadata: medium, dense, or high.");
     if (!guideStyleWatermark) severityPush(mode, violations, warnings, "SVG social output must use the cropped semi-transparent gradient CCC mark geometry from the reference system; concentric-circle substitutes are not accepted.");
     if (legacyCircleWatermark) severityPush(mode, violations, warnings, "Concentric-circle watermark geometry is not the CCC mark. Use the official nested-C silhouette with an approved transparent brand gradient.");
-    const expectedReference = styleVariant === "navy_poster" ? "reference-1" : styleVariant === "statistic_card" ? "reference-2" : styleVariant === "contrast_cards" ? "reference-4" : "reference-3";
+    const expectedReference = styleVariant === "navy_poster" ? "reference-1" : styleVariant === "statistic_card" ? "reference-2" : styleVariant === "contrast_cards" ? "reference-4" : styleVariant === "quote_post" ? "reference-5" : "reference-3";
     if (referenceSystem !== expectedReference) severityPush(mode, violations, warnings, `SVG ${styleVariant ?? "social"} output must declare data-ccc-reference-system="${expectedReference}" to preserve the matching reference composition grammar.`);
     if (!Number.isInteger(variation) || variation < 0 || variation > 2) severityPush(mode, violations, warnings, "SVG social output must declare a controlled composition variation from 0 to 2.");
     if (styleVariant === "petition_push" && (!hasActionBand || !hasStackedBlocks || !hasPetitionMarker)) severityPush(mode, violations, warnings, "petition_push social output must include stacked headline blocks, a dark action band, and a petition marker.");
     if (styleVariant === "orange_alert" && (!hasActionBand || !hasStackedBlocks)) severityPush(mode, violations, warnings, "orange_alert social output must include stacked headline blocks and a dark action band.");
     if (styleVariant === "statistic_card" && !(hasLargeStat || styles.some((style) => style.size >= 160))) severityPush(mode, violations, warnings, "statistic_card social output must include one large statistic or lead number at poster scale.");
     if (styleVariant === "contrast_cards" && !(hasContrastCards || (/(?:>|;)(?:NO|BAD)(?:<|&)/i.test(input.svg) && /(?:>|;)(?:YES|GOOD)(?:<|&)/i.test(input.svg)))) severityPush(mode, violations, warnings, "contrast_cards social output must include compact internal NO/YES or BAD/GOOD cards.");
+    if (styleVariant === "quote_post" && (!hasQuotePortrait || !hasQuoteAttribution)) severityPush(mode, violations, warnings, "quote_post output must include one approved team portrait and the matching verified name/title attribution.");
+    if (styleVariant === "quote_post" && (!hasQuoteWatermark || !hasQuoteReferencePalette)) severityPush(mode, violations, warnings, "quote_post output must preserve the supplied reference-5 deep-night background (#15192E) and visible cropped CCC watermark (#22274E)." );
+    if (styleVariant === "quote_post" && !hasSeparatedQuoteZones) severityPush(mode, violations, warnings, "quote_post output must preserve the reference text column and keep the portrait's measured face boundary clear of it.");
+    if (styleVariant === "quote_post" && !hasProportionalQuotePortrait) severityPush(mode, violations, warnings, "quote_post output must use the reference-sized 1000px portrait field and a verified person-specific width between 650px and 813px.");
+    if (styleVariant === "quote_post" && !hasUncroppedQuotePortrait) severityPush(mode, violations, warnings, "quote_post portraits must use xMaxYMax meet inside the canvas without clip-path cropping.");
+    if (styleVariant === "quote_post" && !hasEmbeddedQuotePortrait) severityPush(mode, violations, warnings, "quote_post portraits must be embedded as a base64 data:image URI so downloaded SVGs remain self-contained.");
+    if (styleVariant === "quote_post" && !hasQuoteOrangeEmphasis) severityPush(mode, violations, warnings, "quote_post output must highlight at least one quote word in Autumn Orange (#E95C1F).");
     if (badSocialSplitComposition) severityPush(mode, violations, warnings, "SVG uses a large full-height diagonal split composition; CCC social posts must follow the mapped reference system with a dominant field, stacked text blocks, labels, footer, logo, and cropped CCC mark watermark.");
     if (!posterScaleHeadline) severityPush(mode, violations, warnings, "SVG social output must use the mapped reference's native display face at poster scale: Anton for references 1, 2, and 4; Montserrat Bold for reference 3.");
     if (!frameFillingAnton) severityPush(mode, violations, warnings, "Dominant display typography must occupy the reference headline slots and preserve the supplied CCC composition geometry.");
@@ -358,32 +483,233 @@ export function validateSvgArtifact(input: { svg: string; assetType?: "social" |
   }
   if (placeholderLogo) severityPush(mode, violations, warnings, "SVG contains a logo placeholder. Final CCC output must use an approved official logo asset.");
   if (input.requiresLogo ?? true) if (!logoChecks.some((check) => check.ok)) severityPush(mode, violations, warnings, "SVG does not reference a verified official CCC logo asset.");
-  return { ok: violations.length === 0, mode, violations, warnings, widthPx, heightPx, fonts, colors, colorHarmony, placeholderLogo, logoRefs, logoChecks, referenceExact, guideStyleWatermark, legacyCircleWatermark, guideStyleVariant, styleVariant, referenceSystem, variation, density, validDensity, hasActionBand, hasStackedBlocks, hasPetitionMarker, hasLargeStat, hasContrastCards, badSocialSplitComposition, posterScaleHeadline, frameFillingAnton, artificialTextStretch, weakLargeSocialType };
+  return { ok: violations.length === 0, mode, violations, warnings, widthPx, heightPx, fonts, colors, colorHarmony, illustratorCompatibility, placeholderLogo, logoRefs, logoChecks, referenceExact, guideStyleWatermark, legacyCircleWatermark, guideStyleVariant, styleVariant, referenceSystem, variation, density, validDensity, hasActionBand, hasStackedBlocks, hasPetitionMarker, hasLargeStat, hasContrastCards, hasQuotePortrait, hasQuoteAttribution, hasQuoteWatermark, hasQuoteReferencePalette, hasSeparatedQuoteZones, hasProportionalQuotePortrait, hasUncroppedQuotePortrait, hasEmbeddedQuotePortrait, hasQuoteOrangeEmphasis, badSocialSplitComposition, posterScaleHeadline, frameFillingAnton, artificialTextStretch, weakLargeSocialType };
 }
 
-function logoToHref(check: LogoCheck, basePath?: string) {
+function illustratorFontPolicy(includeAnton = true) {
+  const families = [...(includeAnton ? ["Anton"] : []), "Montserrat", "DM Mono"];
+  return `<metadata data-ccc-font-policy="editable-installed" data-ccc-required-fonts="${families.join(", ")}">Install the packaged CCC fonts before editing. Browser-style base64 web-font embedding is intentionally omitted for Adobe Illustrator compatibility.</metadata>`;
+}
+
+function inlineLogoSvg(check: LogoCheck, x: number, y: number, width: number, height: number, basePath?: string) {
   if (!check.ok || !check.approvedPath) return undefined;
-  const path = resolve(getAssetBase(basePath), check.approvedPath);
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(readFileSync(path, "utf8"))}`;
+  const source = readFileSync(resolve(getAssetBase(basePath), check.approvedPath), "utf8");
+  const viewBox = source.match(/\bviewBox\s*=\s*["']([^"']+)["']/i)?.[1] ?? `0 0 ${width} ${height}`;
+  const inner = source.replace(/^\s*<svg\b[^>]*>/i, "").replace(/<\/svg>\s*$/i, "");
+  return `<svg x="${x}" y="${y}" width="${width}" height="${height}" viewBox="${escapeXml(viewBox)}" preserveAspectRatio="xMidYMid meet" data-ccc-logo-href="${escapeXml(check.approvedPath)}">${inner}</svg>`;
 }
 
-function embeddedFontFaces(basePath?: string, includeAnton = true) {
-  const base = getAssetBase(basePath);
-  const faces = [
-    ...(includeAnton ? [{ family: "Anton", weight: 400, fileName: "fonts/Anton-Regular.ttf" }] : []),
-    { family: "Montserrat", weight: 700, fileName: "fonts/Montserrat-Bold.ttf" },
-    { family: "Montserrat", weight: 500, fileName: "fonts/Montserrat-Medium.ttf" },
-    { family: "DM Mono", weight: 400, fileName: "fonts/DMMono-Regular.ttf" },
-  ].flatMap(({ family, weight, fileName }) => {
-    const path = resolve(base, fileName);
-    if (!existsSync(path)) return [];
-    const data = readFileSync(path).toString("base64");
-    return [`@font-face{font-family:'${family}';font-style:normal;font-weight:${weight};src:url(data:font/ttf;base64,${data}) format('truetype');}`];
+function makeIllustratorSafeSvg(svg: string) {
+  let safe = svg
+    .replace(/<style\b[^>]*data-ccc-embedded-fonts=["']true["'][^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<filter\b[\s\S]*?<\/filter>/gi, "")
+    .replace(/\sfilter\s*=\s*["']url\(#[^)]+\)["']/gi, "")
+    .replace(/<image\b([^>]*?)\shref\s*=/gi, "<image$1 xlink:href=");
+  safe = safe.replace(/<svg\b([^>]*)>/i, (root, attrs: string) => {
+    let next = attrs;
+    if (!/\bversion\s*=/.test(next)) next += ` version="1.1"`;
+    if (!/\bxmlns:xlink\s*=/.test(next)) next += ` xmlns:xlink="http://www.w3.org/1999/xlink"`;
+    if (!/\bdata-ccc-export\s*=/.test(next)) next += ` data-ccc-export="illustrator-svg-1.1"`;
+    if (!/\bdata-ccc-font-policy\s*=/.test(next)) next += ` data-ccc-font-policy="editable-installed"`;
+    return `<svg${next}>`;
   });
-  return faces.length ? `<style data-ccc-embedded-fonts="true">${faces.join("")}</style>` : "";
+  return safe;
 }
 
-export function createGenerationPrompt(input: { request: string; outputType: "social_post" | "video_graphic" | "policy_document" | "website_section" | "ad" | "general"; includeNegativePrompt: boolean }) {
+export function validateIllustratorSvg(input: { svg: string; mode?: ValidationMode }) {
+  const mode = input.mode ?? "final";
+  const violations: string[] = [];
+  const warnings: string[] = [];
+  const root = input.svg.match(/<svg\b[^>]*>/i)?.[0] ?? "";
+  const imageTags = [...input.svg.matchAll(/<image\b[^>]*>/gi)].map((match) => match[0]);
+  const hasSvg11 = /\bversion\s*=\s*["']1\.1["']/i.test(root);
+  const hasXlinkNamespace = /\bxmlns:xlink\s*=\s*["']http:\/\/www\.w3\.org\/1999\/xlink["']/i.test(root);
+  const hasExportContract = /\bdata-ccc-export\s*=\s*["']illustrator-svg-1\.1["']/i.test(root);
+  const hasEmbeddedWebFonts = /@font-face[\s\S]*?url\(\s*["']?data:font\//i.test(input.svg);
+  const svg2ImageHrefs = imageTags.filter((tag) => /\shref\s*=/i.test(tag) && !/\bxlink:href\s*=/i.test(tag));
+  const nonEmbeddedImages = imageTags.filter((tag) => {
+    const href = tag.match(/\bxlink:href\s*=\s*["']([^"']+)["']/i)?.[1];
+    return !href || !/^data:image\/(?:png|jpe?g|webp);base64,/i.test(href);
+  });
+  const embeddedSvgImages = imageTags.filter((tag) => /\bxlink:href\s*=\s*["']data:image\/svg\+xml/i.test(tag));
+  const liveFilters = /<filter\b|\sfilter\s*=\s*["']url\(/i.test(input.svg);
+  if (!hasSvg11 || !hasXlinkNamespace || !hasExportContract) severityPush(mode, violations, warnings, "SVG must declare the Illustrator SVG 1.1 export contract, including version=\"1.1\", xmlns:xlink, and data-ccc-export=\"illustrator-svg-1.1\".");
+  if (hasEmbeddedWebFonts) severityPush(mode, violations, warnings, "Illustrator-safe SVG must not embed fonts through CSS data:font URLs. Keep editable text with packaged fonts installed, or convert final text to outlines.");
+  if (svg2ImageHrefs.length) severityPush(mode, violations, warnings, "Illustrator-safe raster images must use SVG 1.1 xlink:href, not the browser-oriented SVG 2 href attribute.");
+  if (nonEmbeddedImages.length) severityPush(mode, violations, warnings, "Every Illustrator-safe raster image must remain self-contained as an xlink:href base64 PNG, JPEG, or WebP data URI.");
+  if (embeddedSvgImages.length) severityPush(mode, violations, warnings, "Do not place an SVG inside another SVG as a data:image/svg+xml link. Inline official vector logo markup instead.");
+  if (liveFilters) severityPush(mode, violations, warnings, "Illustrator-safe SVG must not use live SVG filter effects. Replace them with ordinary vector shapes or flatten the effect before handoff.");
+  return { ok: violations.length === 0, mode, violations, warnings, hasSvg11, hasXlinkNamespace, hasExportContract, hasEmbeddedWebFonts, imageCount: imageTags.length, svg2ImageHrefs: svg2ImageHrefs.length, nonEmbeddedImages: nonEmbeddedImages.length, embeddedSvgImages: embeddedSvgImages.length, liveFilters };
+}
+
+export function selectOnePagerTemplate(request: string, requested: OnePagerTemplateSelection = "auto") {
+  if (requested !== "auto") return onePagerTemplates.find((template) => template.id === requested)!;
+  const normalized = request.toLocaleLowerCase();
+  const materialSignals = /\b(tariffs?|tax|costs?|prices?|materials?|components?|supply chain|manufactur|imports?|exports?|construction|product breakdown|where .* goes)\b/i;
+  const accessSignals = /\b(access|permits?|permissions?|approval|regulation|barriers?|restrictions?|health|safety|availability|condo|heritage|inspection|bureaucracy)\b/i;
+  const id: OnePagerTemplateId = materialSignals.test(normalized) && !accessSignals.test(normalized) ? "material_cost_chain" : "access_barriers";
+  return onePagerTemplates.find((template) => template.id === id)!;
+}
+
+export function createOnePagerBrief(input: {
+  request: string;
+  template?: OnePagerTemplateSelection;
+  headline?: string;
+  centralObject?: string;
+  keyMessage?: string;
+  sources?: string[];
+  mode?: ValidationMode;
+}) {
+  const mode = input.mode ?? "draft";
+  const template = selectOnePagerTemplate(input.request, input.template ?? "auto");
+  const typographyContract = onePagerConfig.typographyContracts[template.id];
+  const centralObject = input.centralObject?.trim() || "the single physical object that best explains the policy issue";
+  const sources = (input.sources ?? []).map((source) => source.trim()).filter(Boolean);
+  const warnings: string[] = [];
+  const violations: string[] = [];
+  if (mode === "final" && sources.length === 0) violations.push("Final one-pagers require at least one named source citation for the locked footer source line.");
+  if (!input.headline?.trim()) warnings.push("No headline was supplied; the generating model must write a concise uppercase headline that fits the reference title slot without moving or shrinking the layout.");
+  if (!input.keyMessage?.trim()) warnings.push("No closing takeaway was supplied; the generating model must write one concise consumer-choice conclusion for the locked bottom navy panel.");
+  const prompt = [
+    `Create one CCC policy one-pager using the strict ${template.id} reference template.`,
+    `User request: ${input.request}`,
+    `Reference SVG: brand://ccc/one-pager-references/${template.referenceAsset.split("/").pop()}`,
+    `Canvas: ${onePagerConfig.canvas.viewBox} (${onePagerConfig.canvas.widthPx} x ${onePagerConfig.canvas.heightPx} reference units).`,
+    "Start from the supplied SVG itself. Do not recreate, reinterpret, simplify, stretch, or rearrange the page.",
+    `Preserve the template's ${template.titleStyle}, navy/orange/warm-white color roles, section heights, headline origin, brush labels, arrows, dividers, cards, footer, source line, and logo geometry exactly.`,
+    `Typography contract: display title = ${typographyContract.displayTitle}; repeated component headings = ${typographyContract.componentHeadings}; repeated component body = ${typographyContract.componentBody}; statistics = ${typographyContract.statistics}; labels and sources = ${typographyContract.labelsAndSources}. Match the reference font style and size for every slot; never mix families, weights, styles, or sizes within a repeated component role.`,
+    "The only illustration change is the contextual object system: replace the source house/AC imagery with a subject-specific central object and related supporting cutouts while preserving the same illustration boxes, scale relationships, transparent backgrounds, edge treatment, and arrow connections.",
+    `Central object: ${centralObject}.`,
+    `Illustration grammar: ${template.illustrationGrammar}`,
+    "Generate a clean editorial photomontage/cutaway object on transparent background, with crisp realistic edges and no scene background. Do not use a generic AI illustration, painterly rendering, 3D blob, floating circle decoration, or stock-photo rectangle.",
+    "Keep every illustration fully inside its assigned reference zone. Never cover headline, callout, statistic, takeaway, source, or logo text. Embed every raster illustration as a base64 data:image URI in the final SVG.",
+    "Export for Adobe Illustrator as SVG 1.1: declare version=\"1.1\", xmlns:xlink=\"http://www.w3.org/1999/xlink\", and data-ccc-export=\"illustrator-svg-1.1\". Every embedded raster must use xlink:href, never SVG 2 href.",
+    "Do not embed fonts with @font-face or data:font URLs. Keep editable text assigned to the packaged CCC fonts and add data-ccc-font-policy=\"editable-installed\"; users install the packaged fonts before editing. Do not use live SVG filters. Inline official vector logos instead of linking data:image/svg+xml files.",
+    "Replace wording only within the existing text slots. Match the source line count, hierarchy, alignment, and approximate character density; shorten copy instead of moving elements or reducing type below the reference scale.",
+    "Required content structure: one dominant headline and deck; three policy callouts around the central object; one orange lead-stat brush panel; one dark bridge statement; the reference lower-section heading; three or four evidence cards according to the selected template; one bottom consumer-choice conclusion; source footer; official CCC logo.",
+    "Component alignment contract: every text-bearing group must declare data-ccc-component, data-ccc-bounds=\"x y width height\", data-ccc-text-inset, and a measured data-ccc-text-safe-box=\"x y width height\" contained inside its component bounds. Keep at least 24 reference units between component bounds. Use one shared left inset, top inset, baseline interval, font family, weight, style, and size for equivalent callouts or cards. Text may not touch a panel edge, leave its text-safe box, or enter another component.",
+    "Arrow contract: include exactly three data-ccc-connector=\"shaft-arrowhead\" groups. Each must contain one visible 3-unit stroked path with stroke-dasharray=\"6 7\" plus two compact filled polygon/path arrowheads, tangent-aligned and physically touching the two shaft endpoints. Do not cross a text-safe box. Do not use marker-start, marker-mid, or marker-end because Illustrator can import a marker without its shaft.",
+    `Headline: ${input.headline?.trim() || "write from the request"}`,
+    `Closing takeaway: ${input.keyMessage?.trim() || "write from the request"}`,
+    `Sources: ${sources.length ? sources.join(" • ") : "required before final output"}`,
+    `Add data-ccc-asset="one-pager", data-ccc-layout-lock="one-pager-reference-exact", data-ccc-typography-contract="${template.id}-reference", data-ccc-component-grid="reference-spaced", the selected template id, and data-ccc-role markers for title, central illustration, callouts, lead statistic, evidence cards, takeaway, sources, and logo. Add data-ccc-type-role plus direct font-family, font-weight, font-style, and font-size attributes to every required typography role; do not rely on inherited or class-only font declarations. Run validate_one_pager_svg and validate_illustrator_svg; fix every violation before handoff.`,
+  ].join("\n");
+  return {
+    ok: violations.length === 0,
+    mode,
+    template,
+    canvas: onePagerConfig.canvas,
+    lockedElements: onePagerConfig.lockedElements,
+    mutableElements: onePagerConfig.mutableElements,
+    centralObject,
+    sources,
+    violations,
+    warnings,
+    prompt,
+  };
+}
+
+export function validateOnePagerSvg(input: { svg: string; template?: OnePagerTemplateId; mode?: ValidationMode }) {
+  const mode = input.mode ?? "final";
+  const violations: string[] = [];
+  const warnings: string[] = [];
+  const rootTag = input.svg.match(/<svg\b[^>]*>/i)?.[0] ?? "";
+  const viewBox = rootTag.match(/\bviewBox\s*=\s*["']([^"']+)["']/i)?.[1]?.trim().replace(/\s+/g, " ");
+  const templateId = input.svg.match(/data-ccc-one-pager-template=["'](material_cost_chain|access_barriers)["']/i)?.[1] as OnePagerTemplateId | undefined;
+  const colors = svgColors(input.svg);
+  const offPaletteColors = colors.filter((color) => !resolveColor(color));
+  const fontFamilies = svgFontFamilies(input.svg);
+  const allowedReferenceFamilies = new Set(["Montserrat", "Anton", "DM Mono", "Hind"]);
+  const offReferenceFonts = fontFamilies.filter((family) => !allowedReferenceFamilies.has(family));
+  const images = [...input.svg.matchAll(/<image\b[^>]*(?:href|xlink:href)\s*=\s*["']([^"']+)["'][^>]*>/gi)].map((match) => match[1]);
+  const hasEmbeddedImages = images.length > 0 && images.every((href) => /^data:image\/(?:png|jpe?g|webp);base64,/i.test(href));
+  const requiredRoles = ["one-pager-title", "one-pager-central-illustration", "one-pager-callouts", "one-pager-lead-stat", "one-pager-evidence-cards", "one-pager-takeaway", "one-pager-sources", "one-pager-logo"];
+  const missingRoles = requiredRoles.filter((role) => !new RegExp(`data-ccc-role=["']${role}["']`, "i").test(input.svg));
+  const hasPaletteAnchors = /#15192e/i.test(input.svg) && /#fff7(?:ef|f0)/i.test(input.svg) && /#e(?:95c1f|95d20|b5c20)/i.test(input.svg);
+  const locked = /data-ccc-asset=["']one-pager["']/i.test(input.svg) && /data-ccc-layout-lock=["']one-pager-reference-exact["']/i.test(input.svg);
+  const illustratorCompatibility = validateIllustratorSvg({ svg: input.svg, mode });
+  const typographyContract = input.svg.match(/data-ccc-typography-contract=["']([^"']+)["']/i)?.[1];
+  const componentGrid = /data-ccc-component-grid=["']reference-spaced["']/i.test(input.svg);
+  const expectedTypeSpecs: Record<string, { family: string; weight: string; style: "normal" | "italic" }> = {
+    "page-kicker": { family: "DM Mono", weight: "400", style: "normal" },
+    "display-title": { family: "Anton", weight: "400", style: "normal" },
+    "callout-title": { family: "Montserrat", weight: "700", style: "italic" },
+    "callout-body": { family: "Montserrat", weight: "600", style: "normal" },
+    "lead-stat": { family: "Anton", weight: "400", style: "normal" },
+    "section-heading": { family: "Montserrat", weight: "800", style: "italic" },
+    "evidence-number": { family: "Anton", weight: "400", style: "normal" },
+    "evidence-body": { family: "Montserrat", weight: "600", style: "normal" },
+    "takeaway-heading": { family: "Montserrat", weight: "700", style: "normal" },
+    "takeaway-body": { family: "Montserrat", weight: "400", style: "normal" },
+    source: { family: "DM Mono", weight: "400", style: "normal" },
+  };
+  const typeTags = [...input.svg.matchAll(/<text\b[^>]*data-ccc-type-role=["']([^"']+)["'][^>]*>/gi)].map((match) => ({ role: match[1], tag: match[0] }));
+  const missingTypeRoles = Object.keys(expectedTypeSpecs).filter((role) => !typeTags.some((entry) => entry.role === role));
+  const inconsistentTypeRoles: string[] = [];
+  for (const [role, expected] of Object.entries(expectedTypeSpecs)) {
+    const entries = typeTags.filter((entry) => entry.role === role);
+    if (!entries.length) continue;
+    const families = new Set(entries.map((entry) => attr(entry.tag, "font-family")?.split(",")[0]?.trim().replace(/^['"]|['"]$/g, "")));
+    const weights = new Set(entries.map((entry) => (attr(entry.tag, "font-weight") ?? "400").toLowerCase()));
+    const styles = new Set(entries.map((entry) => (attr(entry.tag, "font-style") ?? "normal").toLowerCase()));
+    const sizes = new Set(entries.map((entry) => attr(entry.tag, "font-size")?.trim().toLowerCase().replace(/px$/, "")));
+    if ([...families].some((family) => family !== expected.family) || families.size !== 1 || [...weights].some((weight) => weight !== expected.weight) || weights.size !== 1 || [...styles].some((style) => style !== expected.style) || styles.size !== 1 || sizes.has(undefined) || sizes.size !== 1) inconsistentTypeRoles.push(role);
+  }
+  const componentTags = [...input.svg.matchAll(/<g\b[^>]*data-ccc-component=["']([^"']+)["'][^>]*>/gi)].map((match) => {
+    const bounds = attr(match[0], "data-ccc-bounds")?.split(/\s+/).map(Number) ?? [];
+    const insets = attr(match[0], "data-ccc-text-inset")?.split(/\s+/).map(Number) ?? [];
+    const textSafeBounds = attr(match[0], "data-ccc-text-safe-box")?.split(/\s+/).map(Number) ?? [];
+    return { id: match[1], tag: match[0], bounds, insets, textSafeBounds };
+  });
+  const malformedComponents = componentTags.filter((entry) => entry.bounds.length !== 4 || !entry.bounds.every(Number.isFinite) || entry.insets.length !== 4 || !entry.insets.every(Number.isFinite) || (entry.insets.some((value) => value !== 0) && (entry.textSafeBounds.length !== 4 || !entry.textSafeBounds.every(Number.isFinite)))).map((entry) => entry.id);
+  const unsafeTextComponents = componentTags.filter((entry) => {
+    if (entry.textSafeBounds.length !== 4 || entry.bounds.length !== 4) return false;
+    const [x, y, width, height] = entry.bounds;
+    const [textX, textY, textWidth, textHeight] = entry.textSafeBounds;
+    return textX < x || textY < y || textX + textWidth > x + width || textY + textHeight > y + height;
+  }).map((entry) => entry.id);
+  const crowdedComponents: string[] = [];
+  for (let leftIndex = 0; leftIndex < componentTags.length; leftIndex += 1) {
+    const left = componentTags[leftIndex];
+    if (left.bounds.length !== 4) continue;
+    const [lx, ly, lw, lh] = left.bounds;
+    for (let rightIndex = leftIndex + 1; rightIndex < componentTags.length; rightIndex += 1) {
+      const right = componentTags[rightIndex];
+      if (right.bounds.length !== 4) continue;
+      const [rx, ry, rw, rh] = right.bounds;
+      const xOverlap = Math.min(lx + lw, rx + rw) - Math.max(lx, rx);
+      const yOverlap = Math.min(ly + lh, ry + rh) - Math.max(ly, ry);
+      const horizontalGap = Math.max(rx - (lx + lw), lx - (rx + rw));
+      const verticalGap = Math.max(ry - (ly + lh), ly - (ry + rh));
+      if ((xOverlap > 0 && yOverlap > 0) || (yOverlap > 0 && horizontalGap >= 0 && horizontalGap < 24) || (xOverlap > 0 && verticalGap >= 0 && verticalGap < 24)) crowdedComponents.push(`${left.id}/${right.id}`);
+    }
+  }
+  const connectorBlocks = [...input.svg.matchAll(/<g\b[^>]*data-ccc-connector=["']shaft-arrowhead["'][^>]*>[\s\S]*?<\/g>/gi)].map((match) => match[0]);
+  const badConnectors = connectorBlocks.filter((block) => {
+    const shaft = block.match(/<path\b[^>]*stroke=["'](?:#(?:FFF7EF|E95C1F)|#(?:fff7ef|e95c1f))["'][^>]*>/i)?.[0] ?? "";
+    const arrowheads = [...block.matchAll(/<(?:polygon|path)\b[^>]*fill=["'](?:#(?:FFF7EF|E95C1F)|#(?:fff7ef|e95c1f))["'][^>]*>/gi)];
+    return !shaft || attr(shaft, "stroke-width") !== "3" || attr(shaft, "stroke-dasharray")?.trim() !== "6 7" || arrowheads.length !== 2;
+  });
+  if (!input.svg.trim().startsWith("<svg")) violations.push("One-pager is not a standalone SVG document.");
+  if (viewBox !== onePagerConfig.canvas.viewBox) severityPush(mode, violations, warnings, `One-pager viewBox must remain exactly ${onePagerConfig.canvas.viewBox}; received ${viewBox || "missing"}.`);
+  if (!templateId || (input.template && templateId !== input.template)) severityPush(mode, violations, warnings, "One-pager must declare the selected material_cost_chain or access_barriers template id.");
+  if (!locked) severityPush(mode, violations, warnings, "One-pager must declare the strict one-pager reference layout lock.");
+  if (typographyContract !== `${templateId}-reference`) severityPush(mode, violations, warnings, "One-pager must declare and follow the selected template-specific typography contract.");
+  if (missingTypeRoles.length || inconsistentTypeRoles.length) severityPush(mode, violations, warnings, `One-pager typography roles must declare and use the reference font, weight, style, and one consistent size per repeated component${missingTypeRoles.length ? `; missing roles: ${missingTypeRoles.join(", ")}` : ""}${inconsistentTypeRoles.length ? `; inconsistent roles: ${inconsistentTypeRoles.join(", ")}` : ""}.`);
+  if (!componentGrid || componentTags.length < 8 || malformedComponents.length || unsafeTextComponents.length) severityPush(mode, violations, warnings, `One-pager components must use the reference-spaced grid with explicit bounds, text insets, and contained text-safe boxes${malformedComponents.length ? `; malformed components: ${malformedComponents.join(", ")}` : ""}${unsafeTextComponents.length ? `; text-safe boxes outside components: ${unsafeTextComponents.join(", ")}` : ""}.`);
+  if (crowdedComponents.length) severityPush(mode, violations, warnings, `One-pager components overlap or have less than the 24-unit reference gutter: ${[...new Set(crowdedComponents)].join(", ")}.`);
+  if (connectorBlocks.length !== 3 || badConnectors.length) severityPush(mode, violations, warnings, "One-pager must include exactly three clean Illustrator-safe connector groups, each built from one 3-unit shaft with a 6 7 dash rhythm plus two compact vector arrowheads. SVG marker-only, detached, oversized, or inconsistent arrows are not accepted.");
+  if (/\bmarker-(?:start|mid|end)\s*=/i.test(input.svg)) severityPush(mode, violations, warnings, "One-pager connectors must not rely on SVG markers; Illustrator can import the arrowhead without its guide line. Use explicit shaft and arrowhead geometry.");
+  if (!hasPaletteAnchors || offPaletteColors.length) severityPush(mode, violations, warnings, `One-pager must preserve the CCC navy/orange/warm-white palette${offPaletteColors.length ? `; off-palette colors: ${offPaletteColors.join(", ")}` : ""}.`);
+  if (offReferenceFonts.length) severityPush(mode, violations, warnings, `One-pager uses fonts outside the two supplied references: ${offReferenceFonts.join(", ")}.`);
+  if (missingRoles.length) severityPush(mode, violations, warnings, `One-pager is missing locked content regions: ${missingRoles.join(", ")}.`);
+  if (!hasEmbeddedImages) severityPush(mode, violations, warnings, "All contextual one-pager illustrations must be embedded base64 data:image assets; external or missing images are not accepted.");
+  violations.push(...illustratorCompatibility.violations);
+  warnings.push(...illustratorCompatibility.warnings);
+  return { ok: violations.length === 0, mode, violations, warnings, templateId, viewBox, colors, fontFamilies, images: images.length, hasEmbeddedImages, hasPaletteAnchors, locked, missingRoles, illustratorCompatibility, typographyContract, missingTypeRoles, inconsistentTypeRoles, componentGrid, components: componentTags.length, malformedComponents, unsafeTextComponents, crowdedComponents: [...new Set(crowdedComponents)], connectors: connectorBlocks.length, badConnectors: badConnectors.length };
+}
+
+export function createGenerationPrompt(input: { request: string; outputType: "social_post" | "one_pager" | "video_graphic" | "policy_document" | "website_section" | "ad" | "general"; includeNegativePrompt: boolean }) {
   const lines = [
     `Create a ${input.outputType.replaceAll("_", " ")} for ${brand.brand.name}.`,
     `User request: ${input.request}`,
@@ -394,18 +720,21 @@ export function createGenerationPrompt(input: { request: string; outputType: "so
     "Use only this palette:",
     ...colorEntries.map((entry) => `- ${entry.name}: ${entry.hex} (${entry.group})`),
     "",
-    "Before composing social artwork, inspect brand://ccc/post-references. Treat those four files as the layout grammar, not merely as inspiration.",
-    "Reference mapping: navy_poster -> reference 1; statistic_card -> reference 2; petition_push/orange_alert -> reference 3; contrast_cards -> reference 4.",
-    "Typography: preserve the native display face and type slots of the mapped reference. References 1, 2, and 4 use Anton Regular; reference 3 uses Montserrat Bold. Never use SVG textLength/lengthAdjust because it creates viewer-dependent letter spacing. Montserrat supports statements and body copy; DM Mono is for small labels and footer text.",
-    "Visual composition: choose a CCC guide variant rather than reusing one generic template: navy_poster, petition_push, orange_alert, statistic_card, or contrast_cards. Preserve the selected reference's coordinates, crop, headline rhythm, block treatment, icon paths, mark position, and footer placement.",
+    "Before composing social artwork, inspect brand://ccc/post-references. Treat those five files as the layout grammar, not merely as inspiration.",
+    "Reference mapping: navy_poster -> reference 1; statistic_card -> reference 2; petition_push/orange_alert -> reference 3; contrast_cards -> reference 4; quote_post -> reference 5.",
+    "Typography: preserve the native display face and type slots of the mapped reference. References 1, 2, 4, and 5 use Anton Regular; reference 3 uses Montserrat Bold. Never use SVG textLength/lengthAdjust because it creates viewer-dependent letter spacing. Montserrat supports statements, attributions, and body copy; DM Mono is for small labels and footer text.",
+    "Visual composition: choose a CCC guide variant rather than reusing one generic template: navy_poster, petition_push, orange_alert, statistic_card, contrast_cards, or quote_post. Preserve the selected reference's coordinates, crop, headline rhythm, block treatment, icon paths, mark position, and footer placement.",
     "Watermark: use the actual nested-C CCC mark silhouette, cropped at the frame edge and filled with a subtle transparent brand-color gradient. Do not approximate it with circles or generic rings.",
     ...Object.entries(socialStyleVariants).map(([id, description]) => `- ${id}: ${description}`),
     "Large social headlines must use the mapped reference's native display face: Anton Regular for references 1, 2, and 4; Montserrat Bold for reference 3.",
     "A controlled two-field split is allowed only for contrast_cards because reference 4 explicitly uses it. Do not apply that split to other variants.",
     "Do not use full-height diagonal dividers, serif display type, off-palette colors, decorative gradients outside the CCC mark, invented logos, or generic iconography.",
+    "Every downloadable SVG must use the Adobe Illustrator SVG 1.1 export contract: version=\"1.1\", xmlns:xlink, data-ccc-export=\"illustrator-svg-1.1\", xlink:href for embedded base64 raster images, installed editable CCC fonts instead of data:font web-font embedding, no nested data:image/svg+xml links, and no live SVG filters.",
     "Use packaged official logo SVG assets for final output. Default dark-field logo: logos/ccc-wide-orange.svg. Default orange/light-field logo: logos/ccc-wide-leila.svg.",
+    "For quote_post, always use create_quote_post with one approved person from brand://ccc/quote-people. Preserve the supplied 1080x1350 template, its Anton font sizes, and its original 100/82/68px line rhythm. Keep copy in the left reference column and the measured face/body silhouette to its right; never place text over a person. Use the verified person-specific portrait width with only a small quote-length adjustment. Portraits must use xMaxYMax meet placement, remain fully visible without distortion, clipping, or source cropping, and be embedded directly in the SVG as a base64 data:image URI. Every quote must highlight at least one meaningful word in Autumn Orange. Never invent a portrait, name, title, or attribution.",
   ];
   if (input.outputType === "social_post") lines.push("", `Social format: ${brand.social.canonicalSize.widthPx}x${brand.social.canonicalSize.heightPx}px.`, `Footer must include: ${brand.social.requiredFooter}.`);
+  if (input.outputType === "one_pager") lines.push("", createOnePagerBrief({ request: input.request }).prompt);
   if (input.includeNegativePrompt) lines.push("", "Negative prompt: AI-template look, small timid headline, unused empty frame, serif typography, Times/Georgia-style headlines, repeated generic clean navy composition, concentric circle watermark, generic rings, bubble decoration, full-height diagonal divider wedges, off-palette colors, unapproved fonts, decorative gradients outside the CCC mark, invented logo marks, distorted logo, stock iconography, generic corporate styling, dense infographic clutter.");
   return lines.join("\n");
 }
@@ -422,6 +751,7 @@ function isContrastAsk(input: { headline: string; kicker?: string; body?: string
 
 function selectSocialStyleVariant(input: { template: keyof typeof socialTemplates; headline: string; kicker?: string; body?: string; cta?: string }, requested?: SocialStyleVariant): Exclude<SocialStyleVariant, "auto"> {
   if (requested && requested !== "auto") return requested;
+  if (input.template === "quote") return "quote_post";
   if (input.template === "statistic") return "statistic_card";
   if (isContrastAsk(input)) return "contrast_cards";
   if (isPetitionAsk(input)) return "petition_push";
@@ -480,6 +810,7 @@ function referenceForVariant(variant: Exclude<SocialStyleVariant, "auto">) {
   if (variant === "navy_poster") return "reference-1";
   if (variant === "statistic_card") return "reference-2";
   if (variant === "contrast_cards") return "reference-4";
+  if (variant === "quote_post") return "reference-5";
   return "reference-3";
 }
 
@@ -490,6 +821,7 @@ function gradientWatermark(variant: Exclude<SocialStyleVariant, "auto">, variati
     petition_push: [{ x: 500, y: 80, width: 820, height: 970 }, { x: -260, y: 230, width: 760, height: 900 }, { x: 620, y: 390, width: 720, height: 850 }],
     orange_alert: [{ x: 500, y: 80, width: 820, height: 970 }, { x: -260, y: 230, width: 760, height: 900 }, { x: 620, y: 390, width: 720, height: 850 }],
     contrast_cards: [{ x: -220, y: 560, width: 720, height: 850 }, { x: 680, y: 30, width: 610, height: 720 }, { x: 240, y: 620, width: 690, height: 815 }],
+    quote_post: [{ x: -120, y: 140, width: 720, height: 850 }, { x: -120, y: 140, width: 720, height: 850 }, { x: -120, y: 140, width: 720, height: 850 }],
   };
   const placement = placements[variant][variation];
   const isOrange = variant === "orange_alert" || variant === "petition_push";
@@ -519,6 +851,8 @@ type SocialSvgInput = {
   cta?: string;
   comparisonLeft?: string;
   comparisonRight?: string;
+  person?: string;
+  emphasis?: string;
   variation?: number;
   includeLogoPlaceholder: boolean;
   officialLogoHref?: string;
@@ -530,12 +864,18 @@ type SocialSvgInput = {
 function normalizeReferencePalette(svg: string) {
   const replacements: Array<[RegExp, string]> = [
     [/#161a2e/gi, "#22264E"],
+    [/#15192e/gi, "#22264E"],
+    [/#22274e/gi, "#22264E"],
     [/#21284e/gi, "#6F789B"],
     [/#e75e1f/gi, "#E95C1F"],
     [/#ea5c20/gi, "#E95C1F"],
+    [/#eb5c20/gi, "#E95C1F"],
+    [/#e95d20/gi, "#E95C1F"],
     [/#f07e25/gi, "#F4B544"],
     [/#fff7ef/gi, "#FFF7EF"],
+    [/#fff7f0/gi, "#FFF7EF"],
     [/#e6ebf5/gi, "#E7ECF4"],
+    [/#e8ecf5/gi, "#E7ECF4"],
     [/#9dd2c4/gi, "#9BD8C7"],
     [/#9ed2c4/gi, "#9BD8C7"],
     [/#04a8a8/gi, "#00A6A6"],
@@ -548,6 +888,16 @@ function normalizeReferencePalette(svg: string) {
     .replace(/DMMono-(?:Regular|Medium)/g, "DM Mono")
     .replace(/Montserrat-(?:Bold|Medium)/g, "Montserrat")
     .replace(/Anton-Regular/g, "Anton");
+}
+
+function normalizeQuoteReferencePalette(svg: string) {
+  const quoteNight = getColor(quotePostConfig.backgroundColor);
+  const quoteWatermark = getColor(quotePostConfig.watermarkColor);
+  return normalizeReferencePalette(svg
+    .replace(/#15192e/gi, "__CCC_QUOTE_NIGHT__")
+    .replace(/#22274e/gi, "__CCC_QUOTE_WATERMARK__"))
+    .replaceAll("__CCC_QUOTE_NIGHT__", quoteNight)
+    .replaceAll("__CCC_QUOTE_WATERMARK__", quoteWatermark);
 }
 
 function fitReferenceSize(value: string, baseSize: number, maxUnits: number, minimumScale = 0.76) {
@@ -623,27 +973,164 @@ function referenceOverlay(input: SocialSvgInput, variant: Exclude<SocialStyleVar
     ${referenceText(brand.social.requiredFooter, 226.76, 463.18, "DM Mono", 8.7, getColor("brightTeal"))}`;
 }
 
+function svgAssetToHref(fileName: string, basePath?: string) {
+  const path = resolve(getAssetBase(basePath), fileName);
+  if (!existsSync(path)) return undefined;
+  const svg = readFileSync(path, "utf8");
+  const embeddedRaster = svg.match(/(?:href|xlink:href)=["'](data:image\/(?:png|jpe?g|webp);base64,[^"']+)["']/i)?.[1];
+  return embeddedRaster ?? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+const quoteEmphasisIgnored = new Set(["about", "after", "again", "against", "because", "before", "being", "choice", "could", "every", "from", "have", "into", "make", "more", "not", "should", "that", "their", "them", "there", "these", "they", "this", "those", "through", "under", "when", "where", "which", "while", "with", "would"]);
+
+function defaultQuoteEmphasis(quote: string) {
+  const words = quote.match(/[\p{L}\p{N}'’-]+/gu) ?? [];
+  return [...words].reverse().find((word) => word.length >= 5 && !quoteEmphasisIgnored.has(word.toLowerCase())) ?? words.at(-1) ?? "";
+}
+
+function resolveQuoteEmphasis(quote: string, requested?: string) {
+  const quoteLower = quote.toLocaleLowerCase();
+  const requestedPhrase = requested?.trim().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "") ?? "";
+  const phraseIndex = requestedPhrase ? quoteLower.indexOf(requestedPhrase.toLocaleLowerCase()) : -1;
+  if (phraseIndex >= 0 && requestedPhrase.split(/\s+/).length <= 4 && requestedPhrase.length >= 4) {
+    return quote.slice(phraseIndex, phraseIndex + requestedPhrase.length);
+  }
+  const requestedWords = requested?.match(/[\p{L}\p{N}'’-]+/gu) ?? [];
+  const requestedWord = [...requestedWords]
+    .sort((left, right) => right.length - left.length)
+    .find((word) => word.length >= 4 && !quoteEmphasisIgnored.has(word.toLocaleLowerCase()) && quoteLower.includes(word.toLocaleLowerCase()));
+  return requestedWord ?? defaultQuoteEmphasis(quote);
+}
+
+function quoteLayout(quote: string) {
+  const length = quote.length;
+  const settings = length <= 88
+    ? { maxChars: 23, fontSize: 65, lineGap: 100, firstY: 347.2 }
+    : length <= 118
+      ? { maxChars: 22, fontSize: 56, lineGap: 82, firstY: 320 }
+      : { maxChars: 22, fontSize: 49, lineGap: 68, firstY: 302 };
+  const lines = wrapWords(quote, settings.maxChars);
+  if (lines.length > quotePostConfig.quoteMaxLines) throw new Error(`Quote does not fit the supplied template. Use ${quotePostConfig.quoteMaxLines} lines or fewer and no more than ${quotePostConfig.quoteMaxCharacters} characters.`);
+  const lineGap = settings.lineGap;
+  const firstY = Math.min(settings.firstY, 647.2 - (lines.length - 1) * lineGap);
+  if (firstY < 230) throw new Error(`Quote does not fit the supplied template's Anton line rhythm. Shorten the quote or use fewer than ${quotePostConfig.quoteMaxLines} lines.`);
+  const lastY = firstY + (lines.length - 1) * lineGap;
+  const attributionNameY = Math.min(756.77, lastY + 109.57);
+  const attributionTitleY = attributionNameY + 33.27;
+  return { ...settings, firstY, lineGap, lastY, lines, attributionNameY, attributionTitleY };
+}
+
+function quoteLineMarkup(line: string, emphasis: string) {
+  if (!emphasis) return escapeXml(line);
+  const index = line.toLocaleLowerCase().indexOf(emphasis.toLocaleLowerCase());
+  if (index < 0) return escapeXml(line);
+  const before = line.slice(0, index);
+  const match = line.slice(index, index + emphasis.length);
+  const after = line.slice(index + emphasis.length);
+  return `${escapeXml(before)}<tspan data-ccc-role="quote-emphasis" fill="${getColor("autumnOrange")}">${escapeXml(match)}</tspan>${escapeXml(after)}`;
+}
+
+export function createQuotePostSvg(input: {
+  quote: string;
+  person: string;
+  emphasis?: string;
+  officialLogoHref?: string;
+  assetBasePath?: string;
+  mode?: ValidationMode;
+}) {
+  const mode = input.mode ?? "draft";
+  const cleanQuote = input.quote.trim().replace(/^[“”"']+|[“”"']+$/g, "").trim();
+  if (!cleanQuote) throw new Error("Quote text is required.");
+  if (cleanQuote.length > quotePostConfig.quoteMaxCharacters) throw new Error(`Quote is ${cleanQuote.length} characters; the supplied template supports at most ${quotePostConfig.quoteMaxCharacters}.`);
+  const person = resolveQuotePerson(input.person);
+  if (!person) throw new Error(`Unknown CCC quote person "${input.person}". Choose one of: ${quotePeople.map((entry) => `${entry.id} (${entry.fullName})`).join(", ")}.`);
+
+  const templatePath = resolve(getAssetBase(input.assetBasePath), quotePostConfig.templateAsset);
+  if (!existsSync(templatePath)) throw new Error(`Quote post template is missing: ${quotePostConfig.templateAsset}.`);
+  const portraitHref = svgAssetToHref(person.portraitFile, input.assetBasePath);
+  const selectedLogoHref = input.officialLogoHref ?? selectDefaultLogoHref("dark", input.assetBasePath);
+  const logoCheck = validateLogoHref(selectedLogoHref, input.assetBasePath);
+  const fontPolicy = illustratorFontPolicy(true);
+  const requiredRenderFonts = ["fonts/Anton-Regular.ttf", "fonts/Montserrat-Bold.ttf", "fonts/Montserrat-Medium.ttf", "fonts/DMMono-Regular.ttf"];
+  const missingRenderFonts = requiredRenderFonts.filter((fileName) => !existsSync(resolve(getAssetBase(input.assetBasePath), fileName)));
+  const layoutSpec = quoteLayout(cleanQuote);
+  const selectedEmphasis = resolveQuoteEmphasis(cleanQuote, input.emphasis).replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+  if (!selectedEmphasis) throw new Error("Quote posts require at least one word that can be highlighted in Autumn Orange.");
+  const quoteLines = layoutSpec.lines.map((line, index) => {
+    const opening = index === 0 ? "“" : "";
+    const closing = index === layoutSpec.lines.length - 1 ? "”" : "";
+    return `<text x="54.78" y="${Math.round((layoutSpec.firstY + index * layoutSpec.lineGap) * 100) / 100}" font-family="Anton" font-weight="400" font-size="${layoutSpec.fontSize}" fill="${getColor("coolMist")}">${opening}${quoteLineMarkup(line, selectedEmphasis)}${closing}</text>`;
+  }).join("");
+  if (!/data-ccc-role="quote-emphasis"/.test(quoteLines)) throw new Error("Quote emphasis could not be placed. Supply a word that appears in the quote.");
+  const titleSize = Math.round(Math.max(20, Math.min(31.33, 31.33 * (28 / person.title.length))) * 100) / 100;
+  const { attributionNameY, attributionTitleY } = layoutSpec;
+  const portraitWidth = Math.min(person.portraitReferenceMaxWidth, person.portraitReferenceWidth + Math.max(0, 7 - layoutSpec.lines.length) * 12);
+  const portraitBox = { x: 1080 - portraitWidth, y: 350, width: portraitWidth, height: 1000 };
+  const portrait = portraitHref
+    ? `<g data-ccc-role="quote-portrait" data-ccc-portrait-contained="true" data-ccc-portrait-embedded="true" data-ccc-portrait-href-kind="embedded-data-uri" data-ccc-portrait-scale="reference-proportional"><image xlink:href="${escapeXml(portraitHref)}" x="${portraitBox.x}" y="${portraitBox.y}" width="${portraitBox.width}" height="${portraitBox.height}" preserveAspectRatio="${person.portraitFit}"/></g>`
+    : "";
+
+  const quoteNight = getColor(quotePostConfig.backgroundColor);
+  const quoteWatermark = getColor(quotePostConfig.watermarkColor);
+  let svg = normalizeQuoteReferencePalette(readFileSync(templatePath, "utf8"))
+    .replace(/<image\b[^>]*\/>/gi, "")
+    .replace(/<text\b[\s\S]*?<\/text>/gi, "");
+  const rootMetadata = ` data-ccc-style="guide-social" data-ccc-layout-lock="reference-exact" data-ccc-variant="quote_post" data-ccc-reference-system="reference-5" data-ccc-variation="0" data-ccc-density="medium" data-ccc-watermark-source="packaged-reference" data-ccc-quote-background="${quoteNight}" data-ccc-quote-watermark-color="${quoteWatermark}" data-ccc-quote-safe-zones="reference-columns" data-ccc-quote-line-count="${layoutSpec.lines.length}" data-ccc-quote-text-bottom="${layoutSpec.lastY}" data-ccc-quote-text-column-right="520" data-ccc-portrait-face-safe-left="490" data-ccc-portrait-safe-top="${portraitBox.y}" data-ccc-portrait-width="${portraitBox.width}" data-ccc-portrait-height="${portraitBox.height}" data-ccc-portrait-policy="contain-no-crop" data-ccc-portrait-scale="reference-proportional" data-ccc-portrait-embedded="true" data-ccc-emphasis-required="true" data-ccc-has-action-band="false" data-ccc-has-stacked-blocks="false" data-ccc-has-petition-marker="false" data-ccc-has-large-stat="false" data-ccc-has-contrast-cards="false" data-ccc-has-quote-portrait="true" data-ccc-quote-person="${person.id}" data-ccc-portrait-file="${escapeXml(person.portraitFile)}" data-ccc-logo-href="${escapeXml(logoCheck.approvedPath || selectedLogoHref || "")}" width="1080" height="1350" role="img" aria-label="CCC quote from ${escapeXml(person.fullName)}"`;
+  svg = svg.replace(/<svg\b([^>]*)>/i, `<svg$1${rootMetadata}>`);
+  svg = svg.replace(/<g class="cls-3">/i, `<g class="cls-3" data-ccc-role="quote-watermark" data-ccc-watermark="cropped-ccc-mark">`);
+  svg = svg.replace(/<\/svg>\s*$/i, `${fontPolicy}${portrait}<g data-ccc-role="reference-headline">${quoteLines}</g><g data-ccc-role="quote-attribution"><text x="55.46" y="${attributionNameY}" font-family="Montserrat" font-weight="700" font-size="48.08" fill="${getColor("baseWhite")}">${escapeXml(person.fullName)}</text><text x="55.46" y="${attributionTitleY}" font-family="Montserrat" font-weight="700" font-size="${titleSize}" fill="${getColor("autumnOrange")}">${escapeXml(person.title)}</text></g></svg>`);
+  svg = makeIllustratorSafeSvg(svg);
+
+  const layout = qaSocialLayout({ template: "quote", headline: cleanQuote, mode });
+  const validation = validateSpec({
+    colors: [quoteNight, quoteWatermark, getColor("autumnOrange"), getColor("warmWhite"), getColor("baseWhite"), getColor("coolMist")],
+    fonts: ["Anton Regular", "Montserrat Bold", "Montserrat Medium", "DM Mono Regular"],
+    assetType: "social",
+    mode,
+    widthPx: 1080,
+    heightPx: 1350,
+    usesLogo: true,
+    officialLogoHref: selectedLogoHref,
+    assetBasePath: input.assetBasePath,
+    referenceExact: true,
+  });
+  if (!portraitHref || !(assetManifest.quotePeoplePortraits ?? []).includes(person.portraitFile)) severityPush(mode, validation.violations, validation.warnings, `Approved quote portrait is missing or not listed in assets/manifest.json: ${person.portraitFile}.`);
+  if (missingRenderFonts.length) severityPush(mode, validation.violations, validation.warnings, `Required packaged editable fonts are missing: ${missingRenderFonts.join(", ")}.`);
+  validation.violations.push(...layout.violations);
+  validation.warnings.push(...layout.warnings);
+  const artifactValidation = validateSvgArtifact({ svg, assetType: "social", mode, assetBasePath: input.assetBasePath });
+  validation.violations.push(...artifactValidation.violations);
+  validation.warnings.push(...artifactValidation.warnings);
+  validation.ok = validation.violations.length === 0;
+  return { validation, layout, artifactValidation, selectedLogoHref, styleVariant: "quote_post" as const, variation: 0, referenceSystem: "reference-5" as const, layoutLock: "reference-exact" as const, person, emphasis: selectedEmphasis, svg };
+}
+
 function referenceLockedSocialSvg(input: SocialSvgInput) {
   const styleVariant = selectSocialStyleVariant(input, input.styleVariant);
+  if (styleVariant === "quote_post") {
+    if (!input.person) throw new Error(`Quote posts require a person. Choose one of: ${quotePersonIds.join(", ")}.`);
+    return createQuotePostSvg({ quote: input.headline, person: input.person, emphasis: input.emphasis, officialLogoHref: input.officialLogoHref, assetBasePath: input.assetBasePath, mode: input.mode });
+  }
   const referenceSystem = referenceForVariant(styleVariant);
   const referenceNumber = Number(referenceSystem.slice(-1));
   const referencePath = resolve(__dirname, `../assets/post-references/ccc-post-reference-${referenceNumber}.svg`);
   const selectedLogoHref = input.officialLogoHref ?? selectDefaultLogoHref("dark", input.assetBasePath);
   const logoCheck = validateLogoHref(selectedLogoHref, input.assetBasePath);
-  const fontFaces = embeddedFontFaces(input.assetBasePath, true);
+  const fontPolicy = illustratorFontPolicy(true);
   const requiredRenderFonts = ["fonts/Anton-Regular.ttf", "fonts/Montserrat-Bold.ttf", "fonts/Montserrat-Medium.ttf", "fonts/DMMono-Regular.ttf"];
   const missingRenderFonts = requiredRenderFonts.filter((fileName) => !existsSync(resolve(getAssetBase(input.assetBasePath), fileName)));
   const density = styleVariant === "petition_push" ? "high" : styleVariant === "navy_poster" ? "medium" : "dense";
   let svg = normalizeReferencePalette(readFileSync(referencePath, "utf8")).replace(/<text\b[\s\S]*?<\/text>/gi, "");
   const rootMetadata = ` data-ccc-style="guide-social" data-ccc-layout-lock="reference-exact" data-ccc-variant="${styleVariant}" data-ccc-reference-system="${referenceSystem}" data-ccc-variation="0" data-ccc-density="${density}" data-ccc-watermark-source="packaged-reference" data-ccc-has-action-band="${styleVariant === "petition_push" || styleVariant === "orange_alert"}" data-ccc-has-stacked-blocks="${styleVariant === "petition_push" || styleVariant === "orange_alert"}" data-ccc-has-petition-marker="${styleVariant === "petition_push"}" data-ccc-has-large-stat="${styleVariant === "statistic_card"}" data-ccc-has-contrast-cards="${styleVariant === "contrast_cards"}" data-ccc-logo-href="${escapeXml(logoCheck.approvedPath || selectedLogoHref || "")}" width="1080" height="1350"`;
   svg = svg.replace(/<svg\b([^>]*)>/i, `<svg$1${rootMetadata}>`);
-  svg = svg.replace(/<\/svg>\s*$/i, `${fontFaces}${referenceOverlay(input, styleVariant)}</svg>`);
+  svg = svg.replace(/<\/svg>\s*$/i, `${fontPolicy}${referenceOverlay(input, styleVariant)}</svg>`);
+  svg = makeIllustratorSafeSvg(svg);
   const layout = qaSocialLayout({ template: input.template, headline: input.headline, body: input.body ?? "", cta: input.cta, mode: input.mode });
   const palette = styleVariant === "contrast_cards"
     ? [getColor("leila"), getColor("warmWhite"), getColor("autumnOrange"), getColor("brightTeal"), getColor("baseWhite")]
     : [getColor("leila"), getColor("autumnOrange"), getColor("warmWhite"), getColor("baseWhite"), styleVariant === "statistic_card" ? getColor("softMint") : getColor("coolMist")];
   const validation = validateSpec({ colors: palette, fonts: ["Anton Regular", "Montserrat Bold", "Montserrat Medium", "DM Mono Regular"], assetType: "social", mode: input.mode, widthPx: 1080, heightPx: 1350, usesLogo: true, officialLogoHref: selectedLogoHref, assetBasePath: input.assetBasePath });
-  if (missingRenderFonts.length) severityPush(input.mode, validation.violations, validation.warnings, `Required embedded render fonts are missing: ${missingRenderFonts.join(", ")}.`);
+  if (missingRenderFonts.length) severityPush(input.mode, validation.violations, validation.warnings, `Required packaged editable fonts are missing: ${missingRenderFonts.join(", ")}.`);
   validation.violations.push(...layout.violations);
   validation.warnings.push(...layout.warnings);
   const artifactValidation = validateSvgArtifact({ svg, assetType: "social", mode: input.mode, assetBasePath: input.assetBasePath });
@@ -653,7 +1140,7 @@ function referenceLockedSocialSvg(input: SocialSvgInput) {
   return { validation, layout, artifactValidation, selectedLogoHref, styleVariant, variation: 0, referenceSystem, layoutLock: "reference-exact", svg };
 }
 
-function createLegacySocialSvg(input: SocialSvgInput) {
+export function createLegacySocialSvg(input: SocialSvgInput) {
   const isLowerThird = input.template === "lower_third";
   const width = isLowerThird ? brand.visualSystem.videoGraphics.horizontalSize.widthPx : brand.social.canonicalSize.widthPx;
   const height = isLowerThird ? brand.visualSystem.videoGraphics.horizontalSize.heightPx : brand.social.canonicalSize.heightPx;
@@ -665,8 +1152,7 @@ function createLegacySocialSvg(input: SocialSvgInput) {
   const accent = getColor("autumnOrange");
   const selectedLogoHref = input.officialLogoHref ?? selectDefaultLogoHref(isLowerThird ? "light" : "dark", input.assetBasePath);
   const logoCheck = validateLogoHref(selectedLogoHref, input.assetBasePath);
-  const logoHref = logoToHref(logoCheck, input.assetBasePath) ?? selectedLogoHref ?? "";
-  const fontFaces = embeddedFontFaces(input.assetBasePath, !isLowerThird);
+  const fontPolicy = illustratorFontPolicy(!isLowerThird);
   const requiredRenderFonts = [
     ...(!isLowerThird ? ["fonts/Anton-Regular.ttf"] : []),
     "fonts/Montserrat-Bold.ttf",
@@ -675,24 +1161,24 @@ function createLegacySocialSvg(input: SocialSvgInput) {
   ];
   const missingRenderFonts = requiredRenderFonts.filter((fileName) => !existsSync(resolve(getAssetBase(input.assetBasePath), fileName)));
   const renderLogo = (x: number, y: number, logoWidth = 230, logoHeight = 82) => logoCheck.ok && logoCheck.approvedPath
-    ? `<image href="${escapeXml(logoHref)}" data-ccc-logo-href="${escapeXml(logoCheck.approvedPath)}" x="${x}" y="${y}" width="${logoWidth}" height="${logoHeight}" preserveAspectRatio="xMidYMid meet"/>`
+    ? inlineLogoSvg(logoCheck, x, y, logoWidth, logoHeight, input.assetBasePath) ?? ""
     : input.includeLogoPlaceholder && input.mode !== "final"
       ? `<g aria-label="Official CCC logo placeholder"><rect x="${x}" y="${y}" width="${logoWidth}" height="${logoHeight}" fill="none" stroke="${accent}" stroke-width="4"/></g>`
       : "";
   const layout = qaSocialLayout({ template: input.template, headline: input.headline, body: input.body ?? "", cta: input.cta, mode: input.mode });
   if (isLowerThird) {
     const lowerLines = wrapWords(input.headline, 34).slice(0, 2);
-    const lowerSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="CCC lower third">
-      ${fontFaces}
+    const lowerSvg = makeIllustratorSafeSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="CCC lower third">
+      ${fontPolicy}
       <rect width="${width}" height="${height}" fill="${getColor("coolMist")}"/>
       <rect x="0" y="760" width="${width}" height="320" fill="${getColor("leila")}"/>
       <rect x="0" y="760" width="28" height="320" fill="${accent}"/>
       <text x="96" y="830" font-family="DM Mono" font-size="24" fill="${getColor("softMint")}">${escapeXml(input.kicker || socialTemplates.lower_third.label).toUpperCase()}</text>
       ${lowerLines.map((line, index) => `<text x="96" y="${910 + index * 76}" font-family="Montserrat" font-weight="700" font-size="64" fill="${getColor("baseWhite")}">${escapeXml(line)}</text>`).join("\n")}
       ${renderLogo(width - 360, 830, 270, 94)}
-    </svg>`;
+    </svg>`);
     const validation = validateSpec({ colors: [getColor("coolMist"), getColor("leila"), accent, getColor("baseWhite"), getColor("softMint")], fonts: ["Montserrat Bold", "DM Mono Regular"], assetType: "video", mode: input.mode, widthPx: width, heightPx: height, usesLogo: true, officialLogoHref: selectedLogoHref, assetBasePath: input.assetBasePath });
-    if (missingRenderFonts.length) severityPush(input.mode, validation.violations, validation.warnings, `Required embedded render fonts are missing: ${missingRenderFonts.join(", ")}.`);
+    if (missingRenderFonts.length) severityPush(input.mode, validation.violations, validation.warnings, `Required packaged editable fonts are missing: ${missingRenderFonts.join(", ")}.`);
     validation.violations.push(...layout.violations);
     validation.warnings.push(...layout.warnings);
     const artifactValidation = validateSvgArtifact({ svg: lowerSvg, assetType: "video", mode: input.mode, assetBasePath: input.assetBasePath });
@@ -802,8 +1288,8 @@ function createLegacySocialSvg(input: SocialSvgInput) {
     const rightWidth = width - splitX;
     backgroundSvg = `<rect width="${splitX}" height="${height}" fill="${getColor("leila")}"/><rect x="${splitX}" width="${rightWidth}" height="${height}" fill="${getColor("warmWhite")}"/>`;
     const lowerHeadline = input.headline.toLowerCase();
-    const leftTitle = lowerHeadline.includes("bad") ? "BAD" : lowerHeadline.includes("no") ? "NO" : "BAD";
-    const rightTitle = lowerHeadline.includes("good") ? "GOOD" : lowerHeadline.includes("yes") ? "YES" : "GOOD";
+    const leftTitle = lowerHeadline.includes("usa") ? "USA" : lowerHeadline.includes("bad") ? "BAD" : lowerHeadline.includes("no") ? "NO" : "BAD";
+    const rightTitle = lowerHeadline.includes("eu") ? "EU" : lowerHeadline.includes("good") ? "GOOD" : lowerHeadline.includes("yes") ? "YES" : "GOOD";
     const bodyParts = (input.body ?? "").split("|").map((part) => part.trim()).filter(Boolean);
     const leftCopy = wrapWords(input.comparisonLeft ?? bodyParts[0] ?? "Ban first. Ask questions later.", 16).slice(0, 4);
     const rightCopy = wrapWords(input.comparisonRight ?? bodyParts[1] ?? "Regulate risk. Protect choice.", 16).slice(0, 4);
@@ -833,14 +1319,14 @@ function createLegacySocialSvg(input: SocialSvgInput) {
     palette = [getColor("leila"), getColor("warmWhite"), accent, getColor("brightTeal"), getColor("baseWhite")];
   }
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" data-ccc-style="guide-social" data-ccc-variant="${styleVariant}" data-ccc-reference-system="${referenceSystem}" data-ccc-variation="${variation}" data-ccc-density="${density}" data-ccc-has-action-band="${hasActionBand}" data-ccc-has-stacked-blocks="${hasStackedBlocks}" data-ccc-has-petition-marker="${styleVariant === "petition_push"}" data-ccc-has-large-stat="${styleVariant === "statistic_card"}" data-ccc-has-contrast-cards="${styleVariant === "contrast_cards"}" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="CCC social post">
-    ${fontFaces}
+  const svg = makeIllustratorSafeSvg(`<svg xmlns="http://www.w3.org/2000/svg" data-ccc-style="guide-social" data-ccc-variant="${styleVariant}" data-ccc-reference-system="${referenceSystem}" data-ccc-variation="${variation}" data-ccc-density="${density}" data-ccc-has-action-band="${hasActionBand}" data-ccc-has-stacked-blocks="${hasStackedBlocks}" data-ccc-has-petition-marker="${styleVariant === "petition_push"}" data-ccc-has-large-stat="${styleVariant === "statistic_card"}" data-ccc-has-contrast-cards="${styleVariant === "contrast_cards"}" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="CCC social post">
+    ${fontPolicy}
     ${backgroundSvg}
     ${watermark}
     ${contentSvg}
-  </svg>`;
+  </svg>`);
   const validation = validateSpec({ colors: [...new Set(palette)], fonts: ["Anton Regular", "Montserrat Bold", "Montserrat Medium", "DM Mono Regular"], assetType: "social", mode: input.mode, widthPx: width, heightPx: height, usesLogo: true, hasOfficialLogoAsset: logoCheck.ok, officialLogoHref: selectedLogoHref, assetBasePath: input.assetBasePath });
-  if (missingRenderFonts.length) severityPush(input.mode, validation.violations, validation.warnings, `Required embedded render fonts are missing: ${missingRenderFonts.join(", ")}.`);
+  if (missingRenderFonts.length) severityPush(input.mode, validation.violations, validation.warnings, `Required packaged editable fonts are missing: ${missingRenderFonts.join(", ")}.`);
   validation.violations.push(...layout.violations);
   validation.warnings.push(...layout.warnings);
   const artifactValidation = validateSvgArtifact({ svg, assetType: "social", mode: input.mode, assetBasePath: input.assetBasePath });

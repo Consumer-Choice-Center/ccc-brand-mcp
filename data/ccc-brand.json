@@ -26,7 +26,9 @@
       "baseWhite": "#FFFFFF",
       "warmWhite": "#FFF7EF",
       "coolMist": "#E7ECF4",
-      "slateBlue": "#6F789B"
+      "slateBlue": "#6F789B",
+      "quoteNight": "#15192E",
+      "quoteWatermark": "#22274E"
     },
     "tertiary": {
       "brickCoral": "#B9473A",
@@ -235,24 +237,122 @@
           "id": "contrast_cards",
           "useFor": "Bad-vs-good or choice-vs-mandate comparison posts",
           "composition": "Reference 4 system: controlled Leila/Warm White split, paired Anton BAD/GOOD or NO/YES headlines, compact comparison cards, one tertiary accent at most, footer URL, official logo, and cropped gradient CCC marks."
+        },
+        {
+          "id": "quote_post",
+          "useFor": "Attributed quotes from approved CCC team members",
+          "composition": "Reference 5 system: exact supplied quote template with a deep-night field, official top-left logo, cropped CCC mark, protected Anton quote and Montserrat Bold attribution zone, mandatory Autumn Orange emphasis, and one fully embedded approved portrait contained without cropping and scaled proportionally to quote length below the text zone."
         }
       ],
       "referenceAssets": [
         "post-references/ccc-post-reference-1.svg",
         "post-references/ccc-post-reference-2.svg",
         "post-references/ccc-post-reference-3.svg",
-        "post-references/ccc-post-reference-4.svg"
+        "post-references/ccc-post-reference-4.svg",
+        "post-references/ccc-quote-post-template.svg"
       ],
+      "quotePost": {
+        "referenceSystem": "reference-5",
+        "templateAsset": "post-references/ccc-quote-post-template.svg",
+        "backgroundColor": "quoteNight",
+        "watermarkColor": "quoteWatermark",
+        "sourceUrl": "https://consumerchoicecenter.org/team/",
+        "verifiedOn": "2026-07-21",
+        "quoteMaxCharacters": 150,
+        "quoteMaxLines": 7,
+        "people": [
+          {
+            "id": "bill",
+            "fullName": "Bill Wirtz",
+            "title": "Senior Policy Analyst",
+            "portraitFile": "quote-people/bill-wirtz.svg",
+            "portraitFit": "xMaxYMax meet",
+            "portraitReferenceWidth": 770,
+            "portraitReferenceMaxWidth": 800,
+            "aliases": ["bill", "bill wirtz", "wirtz"]
+          },
+          {
+            "id": "david",
+            "fullName": "David Clement",
+            "title": "Policy Director",
+            "portraitFile": "quote-people/david-clement.svg",
+            "portraitFit": "xMaxYMax meet",
+            "portraitReferenceWidth": 800,
+            "portraitReferenceMaxWidth": 813,
+            "aliases": ["david", "david clement", "clement"]
+          },
+          {
+            "id": "emil",
+            "fullName": "Emil Panzaru",
+            "title": "Research Director",
+            "portraitFile": "quote-people/emil-panzaru.svg",
+            "portraitFit": "xMaxYMax meet",
+            "portraitReferenceWidth": 650,
+            "portraitReferenceMaxWidth": 710,
+            "aliases": ["emil", "emil panzaru", "panzaru"]
+          },
+          {
+            "id": "fabio",
+            "fullName": "Fabio Fernandes",
+            "title": "Head of Communications & Marketing",
+            "portraitFile": "quote-people/fabio-fernandes.svg",
+            "portraitFit": "xMaxYMax meet",
+            "portraitReferenceWidth": 700,
+            "portraitReferenceMaxWidth": 720,
+            "aliases": ["fabio", "fabio fernandes", "fernandes"]
+          },
+          {
+            "id": "fred",
+            "fullName": "Fred Roeder",
+            "title": "Managing Director",
+            "portraitFile": "quote-people/fred-roeder.svg",
+            "portraitFit": "xMaxYMax meet",
+            "portraitReferenceWidth": 800,
+            "portraitReferenceMaxWidth": 813,
+            "aliases": ["fred", "fred roeder", "roeder"]
+          },
+          {
+            "id": "stephen",
+            "fullName": "Stephen Kent",
+            "title": "Media Director",
+            "portraitFile": "quote-people/stephen-kent.svg",
+            "portraitFit": "xMaxYMax meet",
+            "portraitReferenceWidth": 813,
+            "portraitReferenceMaxWidth": 813,
+            "aliases": ["stephen", "stephen kent", "kent"]
+          },
+          {
+            "id": "yael",
+            "fullName": "Yaël Ossowski",
+            "title": "Deputy Director",
+            "portraitFile": "quote-people/yael-ossowski.svg",
+            "portraitFit": "xMaxYMax meet",
+            "portraitReferenceWidth": 740,
+            "portraitReferenceMaxWidth": 760,
+            "aliases": ["yael", "yaël", "yael ossowski", "yaël ossowski", "ossowski"]
+          },
+          {
+            "id": "zoltan",
+            "fullName": "Zoltán Kész",
+            "title": "Government Affairs Manager",
+            "portraitFile": "quote-people/zoltan-kesz.svg",
+            "portraitFit": "xMaxYMax meet",
+            "portraitReferenceWidth": 790,
+            "portraitReferenceMaxWidth": 813,
+            "aliases": ["zoltan", "zoltán", "zoltan kesz", "zoltán kész", "kesz", "kész"]
+          }
+        ]
+      },
       "referenceUsage": "Packaged SVG post references are locked layout contracts. Preserve their coordinates, native display fonts, line rhythm, crop behavior, CCC mark geometry, icon paths, CTA placement, logo usage, and variant structure while replacing their wording with the requested message.",
       "composition": [
-        "Map navy_poster to reference 1, statistic_card to reference 2, petition_push/orange_alert to reference 3, and contrast_cards to reference 4.",
-        "Use each reference's native display face and fixed type slots: Anton Regular in references 1, 2, and 4; Montserrat Bold in reference 3. Never use SVG textLength stretching.",
+        "Map navy_poster to reference 1, statistic_card to reference 2, petition_push/orange_alert to reference 3, contrast_cards to reference 4, and quote_post to reference 5.",
+        "Use each reference's native display face and fixed type slots: Anton Regular in references 1, 2, 4, and 5; Montserrat Bold in reference 3. Never use SVG textLength stretching.",
         "Use the actual nested-C CCC mark silhouette as a large cropped background element; fill it with a subtle approved gradient and never approximate it with concentric circles.",
         "Prefer one dominant field color with text blocks, strips, underlines, or compact callout chips; a controlled two-field split is reserved for contrast_cards because reference 4 uses it.",
         "For dark layouts, use Leila as the dominant background, Warm White typography, Autumn Orange emphasis, and a subtle Slate Blue-to-transparent CCC mark.",
         "For orange alert layouts, use Autumn Orange as the dominant background with stacked Leila text boxes, Base White typography, and a dark footer band.",
         "For petition, policymaker, lawmaker, and mandate asks, default to petition_push or orange_alert rather than navy_poster.",
-        "Create variety by choosing among the five reference-mapped style variants; do not invent crop or coordinate variations inside a locked reference layout.",
+        "Create variety by choosing among the six reference-mapped style variants; do not invent crop or coordinate variations inside a locked reference layout.",
         "Keep layouts poster-like and direct rather than decorative or editorial.",
         "Avoid full-height diagonal split compositions, serif display typography, large unrelated comparison panels, soft gradients, bokeh, generic stock styling, and off-palette effects."
       ],
@@ -262,6 +362,83 @@
         "Do not use serif headline typography.",
         "Do not create placeholder logo boxes for final output.",
         "Do not imitate a generic policy comparison infographic when the guide calls for bold CCC poster cards."
+      ]
+    },
+    "onePagers": {
+      "canvas": {
+        "viewBox": "0 0 1186.51 1535.49",
+        "widthPx": 1186.51,
+        "heightPx": 1535.49,
+        "aspectRatio": "1186.51:1535.49"
+      },
+      "referenceUsage": "The two packaged one-pager SVGs are strict production templates. Generated one-pagers must begin from one of them and preserve its canvas, section boundaries, coordinates, typography hierarchy, brush shapes, arrows, card geometry, background mark, footer, source line, and logo geometry.",
+      "templates": [
+        {
+          "id": "material_cost_chain",
+          "label": "Material and cost chain",
+          "referenceAsset": "one-pager-references/ccc-tariffs-american-home.svg",
+          "useFor": "Tariffs, taxes, product costs, supply chains, manufacturing inputs, construction materials, and issues where components flow into a central consumer product.",
+          "titleStyle": "large left-column Anton uppercase title with selected Autumn Orange lines",
+          "illustrationGrammar": "One large photorealistic central consumer object or cutaway composite, surrounded by three related material/component cutouts, connected with the reference orange circular arrow and white dashed pointers."
+        },
+        {
+          "id": "access_barriers",
+          "label": "Access and regulatory barriers",
+          "referenceAsset": "one-pager-references/ccc-cooling-europe.svg",
+          "useFor": "Permits, approvals, restrictions, access, safety, health, availability, bureaucracy, and issues where rules block use of a beneficial product or service.",
+          "titleStyle": "large left-column Anton Regular uppercase title with a single Autumn Orange keyword or line",
+          "illustrationGrammar": "One large photorealistic central object, building, device, or cutaway composite, with three context-specific regulatory callouts and simple outlined policy icons in the fixed reference positions."
+        }
+      ],
+      "lockedElements": [
+        "1186.51 by 1535.49 viewBox and page aspect ratio",
+        "deep-night upper field and warm-white evidence field",
+        "cropped CCC watermark geometry and opacity",
+        "headline origin, width, hierarchy, line rhythm, and template-specific display style",
+        "orange brush panels, connector arrows, dashed rules, icon circles, and dividers",
+        "lead-stat panel, bridge statement, lower-section heading, evidence-card grid, conclusion panel, source line, and logo placement",
+        "all margins, section boundaries, corner radii, stroke weights, and alignment"
+      ],
+      "mutableElements": [
+        "headline and deck copy fitted to the existing slots",
+        "three policy callout headings and supporting bullets",
+        "lead statistic and evidence-card values/copy",
+        "bridge statement, lower-section heading, conclusion, and source citations",
+        "central contextual object illustration and its supporting component/callout cutouts only"
+      ],
+      "illustrationRules": [
+        "Generate the physical object most directly connected to the policy context, not an abstract metaphor.",
+        "Match the references' photorealistic editorial cutout/cutaway style on a transparent background with crisp edges.",
+        "Use one dominant central object and only the supporting objects required by the selected reference composition.",
+        "Preserve the original illustration boxes, scale hierarchy, and connector positions; do not move text to accommodate an image.",
+        "Never overlap illustrations with headline, callout, statistic, conclusion, source, or logo text.",
+        "Embed every raster illustration directly in the SVG as a base64 data:image URI through SVG 1.1 xlink:href; never leave external file links or use the browser-oriented SVG 2 href attribute.",
+        "Every downloadable SVG must declare the Illustrator SVG 1.1 export contract, keep editable text assigned to packaged locally installed CCC fonts, inline vector logos, and avoid data:font web-font embedding and live SVG filters.",
+        "Do not use generic AI scenes, painterly artwork, 3D blobs, floating circles, background photography, or unrelated stock icons."
+      ],
+      "typographyContracts": {
+        "material_cost_chain": {
+          "displayTitle": "Anton Regular",
+          "componentHeadings": "Montserrat Bold",
+          "componentBody": "Montserrat SemiBold",
+          "statistics": "Anton Regular",
+          "labelsAndSources": "DM Mono Regular"
+        },
+        "access_barriers": {
+          "displayTitle": "Anton Regular",
+          "componentHeadings": "Montserrat Bold",
+          "componentBody": "Montserrat SemiBold",
+          "statistics": "Anton Regular",
+          "labelsAndSources": "DM Mono Regular"
+        }
+      },
+      "componentLayoutRules": [
+        "Use one font family and one weight consistently for every repeated component role.",
+        "Every text-bearing component must declare data-ccc-component, data-ccc-bounds, and data-ccc-text-inset.",
+        "Every text-bearing component must also declare a measured data-ccc-text-safe-box contained inside its component bounds; text may not extend outside that box or into another component.",
+        "Keep at least a 24-unit gutter between component bounds; components may not touch or overlap.",
+        "Align text to a shared inset and baseline grid inside each brush panel, card, callout, banner, and takeaway box.",
+        "Build each connector as a tangent-aligned double-ended arrow: one clean 3-unit shaft, 6 7 dash rhythm, and two compact filled vector arrowheads that physically meet the shaft. Do not use SVG marker-start, marker-mid, or marker-end, and never cross a text-safe box."
       ]
     },
     "videoGraphics": {
@@ -511,6 +688,8 @@
     "For petition, policymaker, lawmaker, mandate, and direct advocacy asks, default to petition_push or orange_alert rather than a generic navy poster.",
     "Vary social post layouts across navy poster, petition push, orange alert, statistic card, and compact contrast-card variants based on the message.",
     "Treat the packaged SVG post references as locked layout contracts: preserve coordinates, native display fonts, line rhythm, crop behavior, CCC mark geometry, icon paths, CTA placement, and logo usage while replacing the wording.",
+    "For one-pagers, start from one of the two packaged one-pager reference SVGs and preserve its entire page system; only replace fitted copy and the contextual central/supporting object illustrations.",
+    "One-pager contextual objects must be photorealistic transparent-background editorial cutouts or cutaways, embedded in the SVG, contained inside the original illustration zones, and kept clear of every text region.",
     "Fit large social headlines into the native reference slots without SVG textLength stretching; references 1, 2, and 4 use Anton Regular, while reference 3 uses Montserrat Bold.",
     "Do not use serif display headlines or full-height diagonal divider wedges; use a large split only for the reference-4 contrast_cards system.",
     "For social posts, default to 1080x1350 unless the user explicitly asks for another brand-supported size.",
