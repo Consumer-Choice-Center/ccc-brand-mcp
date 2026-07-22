@@ -13,6 +13,7 @@ import {
   createSocialSvg,
   getPostReferenceAssets,
   getOnePagerReferenceAssets,
+  getOnePagerWorkingTemplateAssets,
   parseFontDescriptor,
   postReferencePaths,
   onePagerReferencePaths,
@@ -217,6 +218,20 @@ test("one-pager references are packaged as strict full-page layout contracts", (
   }
 });
 
+test("one-pager working templates remove populated copy and imagery before composition", () => {
+  const templates = getOnePagerWorkingTemplateAssets();
+  assert.equal(templates.length, 2);
+  for (const template of templates) {
+    assert.equal(template.exists, true);
+    assert.match(template.svg, /data-ccc-clean-template="mutable-content-cleared-v1"/);
+    assert.doesNotMatch(template.svg, /<text\b/i);
+    assert.doesNotMatch(template.svg, /<image\b/i);
+    assert.equal((template.svg.match(/data-ccc-connector="shaft-arrowhead"/g) ?? []).length, 3);
+    assert.ok(template.sourceTextElementsRemoved > 20);
+    assert.ok(template.sourceImageElementsRemoved > 0);
+  }
+});
+
 test("one-pager briefs select a locked composition and contextual object grammar", () => {
   const material = createOnePagerBrief({
     request: "Show how tariffs on battery components raise the cost of an electric vehicle.",
@@ -234,7 +249,7 @@ test("one-pager briefs select a locked composition and contextual object grammar
   assert.equal(material.ok, true);
   assert.equal(material.template.id, "material_cost_chain");
   assert.equal(access.template.id, "access_barriers");
-  assert.match(material.prompt, /Start from the supplied SVG itself/);
+  assert.match(material.prompt, /Start from the supplied clean working SVG itself/);
   assert.match(material.prompt, /base64 data:image URI/);
   assert.match(material.prompt, /xlink:href/);
   assert.match(material.prompt, /Never cover headline, callout, statistic, takeaway, source, or logo text/);
@@ -243,8 +258,10 @@ test("one-pager briefs select a locked composition and contextual object grammar
   assert.match(material.prompt, /at least 24 reference units/);
   assert.match(material.prompt, /data-ccc-text-safe-box/);
   assert.match(material.prompt, /stroke-dasharray="6 7"/);
-  assert.match(material.prompt, /Open and duplicate the linked reference SVG/);
-  assert.equal(material.referenceResourceUri, "brand://ccc/one-pager-references/ccc-tariffs-american-home.svg");
+  assert.match(material.prompt, /already has every original text element and raster illustration removed/);
+  assert.match(material.prompt, /never add a second connector set/i);
+  assert.equal(material.referenceResourceUri, "brand://ccc/one-pager-working-templates/ccc-tariffs-american-home.svg");
+  assert.equal(material.visualReferenceResourceUri, "brand://ccc/one-pager-references/ccc-tariffs-american-home.svg");
   assert.equal(material.templateIntegrity.minimumGeometryRetention, 0.9);
   assert.ok(material.templateIntegrity.referenceShapes > 100);
   assert.match(material.templateIntegrity.requiredRootAttribute, /data-ccc-template-source/);
@@ -274,30 +291,30 @@ function onePagerGeometryFixture(fileName) {
 
 test("one-pager SVG validation enforces the locked canvas, regions, and embedded object", () => {
   const referenceGeometry = onePagerGeometryFixture("ccc-tariffs-american-home.svg");
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 1186.51 1535.49" data-ccc-export="illustrator-svg-1.1" data-ccc-font-policy="editable-installed" data-ccc-asset="one-pager" data-ccc-layout-lock="one-pager-reference-exact" data-ccc-one-pager-template="material_cost_chain" data-ccc-template-source="one-pager-references/ccc-tariffs-american-home.svg" data-ccc-typography-contract="material_cost_chain-reference" data-ccc-component-grid="reference-spaced">
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 1186.51 1535.49" data-ccc-export="illustrator-svg-1.1" data-ccc-font-policy="editable-installed" data-ccc-asset="one-pager" data-ccc-layout-lock="one-pager-reference-exact" data-ccc-one-pager-template="material_cost_chain" data-ccc-template-source="one-pager-references/ccc-tariffs-american-home.svg" data-ccc-clean-template="mutable-content-cleared-v1" data-ccc-typography-contract="material_cost_chain-reference" data-ccc-component-grid="reference-spaced">
     ${referenceGeometry}
     <rect width="1186.51" height="1000" fill="#15192E"/><rect y="1000" width="1186.51" height="535.49" fill="#FFF7EF"/><path fill="#E95C1F" d="M0 0h20v20H0z"/>
-    <g data-ccc-role="one-pager-title" data-ccc-component="title" data-ccc-bounds="20 20 180 180" data-ccc-text-inset="10 10 10 10" data-ccc-text-safe-box="30 30 160 160">
-      <text data-ccc-type-role="page-kicker" font-family="DM Mono" font-size="15" font-weight="400" fill="#FFFFFF">LABEL</text>
-      <text data-ccc-type-role="display-title" font-family="Anton" font-size="72" font-weight="400" fill="#FFFFFF">TITLE</text>
+    <g data-ccc-role="one-pager-title" data-ccc-component="title" data-ccc-bounds="20 20 300 160" data-ccc-text-inset="10 10 10 10" data-ccc-text-safe-box="30 30 280 140">
+      <text x="30" y="50" data-ccc-type-role="page-kicker" font-family="DM Mono" font-size="15" font-weight="400" fill="#FFFFFF">POLICY GRAPHIC</text>
+      <text x="30" y="130" data-ccc-type-role="display-title" font-family="Anton" font-size="72" font-weight="400" fill="#FFFFFF">CHOICE</text>
     </g>
-    <g data-ccc-role="one-pager-central-illustration" data-ccc-component="object" data-ccc-bounds="240 20 180 180" data-ccc-text-inset="0 0 0 0"><image xlink:href="data:image/png;base64,AAAA"/></g>
-    <g data-ccc-role="one-pager-callouts" data-ccc-component="callouts" data-ccc-bounds="460 20 180 180" data-ccc-text-inset="10 10 10 10" data-ccc-text-safe-box="470 30 160 160">
-      <text data-ccc-type-role="callout-title" font-family="Montserrat" font-size="18" font-weight="700" font-style="italic" fill="#FFFFFF">CALLOUT</text>
-      <text data-ccc-type-role="callout-body" font-family="Montserrat" font-size="15" font-weight="600" fill="#FFFFFF">BODY</text>
+    <g data-ccc-role="one-pager-central-illustration" data-ccc-component="object" data-ccc-bounds="1000 210 100 100" data-ccc-text-inset="0 0 0 0"><image x="1000" y="210" width="100" height="100" preserveAspectRatio="xMidYMid meet" data-ccc-role="one-pager-central-illustration" xlink:href="data:image/png;base64,AAAA"/></g>
+    <g data-ccc-role="one-pager-callouts" data-ccc-component="callouts" data-ccc-bounds="360 20 300 160" data-ccc-text-inset="10 10 10 10" data-ccc-text-safe-box="370 30 280 140">
+      <text x="370" y="60" data-ccc-type-role="callout-title" font-family="Montserrat" font-size="18" font-weight="700" font-style="italic" fill="#FFFFFF">ACCESS</text>
+      <text x="370" y="95" data-ccc-type-role="callout-body" font-family="Montserrat" font-size="15" font-weight="600" fill="#FFFFFF">RULES MATTER</text>
     </g>
-    <g data-ccc-role="one-pager-lead-stat" data-ccc-component="lead" data-ccc-bounds="680 20 180 180" data-ccc-text-inset="10 10 10 10" data-ccc-text-safe-box="690 30 160 160"><text data-ccc-type-role="lead-stat" font-family="Anton" font-size="50" font-weight="400" fill="#FFFFFF">42%</text></g>
-    <g data-ccc-role="one-pager-evidence-cards" data-ccc-component="evidence" data-ccc-bounds="20 240 180 180" data-ccc-text-inset="10 10 10 10" data-ccc-text-safe-box="30 250 160 160">
-      <text data-ccc-type-role="section-heading" font-family="Montserrat" font-size="36" font-weight="800" font-style="italic" fill="#FFFFFF">EVIDENCE</text>
-      <text data-ccc-type-role="evidence-number" font-family="Anton" font-size="49" font-weight="400" fill="#FFFFFF">27</text>
-      <text data-ccc-type-role="evidence-body" font-family="Montserrat" font-size="15" font-weight="600" fill="#FFFFFF">STATES</text>
+    <g data-ccc-role="one-pager-lead-stat" data-ccc-component="lead" data-ccc-bounds="700 20 220 160" data-ccc-text-inset="10 10 10 10" data-ccc-text-safe-box="710 30 200 140"><text x="710" y="100" data-ccc-type-role="lead-stat" font-family="Anton" font-size="50" font-weight="400" fill="#FFFFFF">42%</text></g>
+    <g data-ccc-role="one-pager-evidence-cards" data-ccc-component="evidence" data-ccc-bounds="20 240 300 180" data-ccc-text-inset="10 10 10 10" data-ccc-text-safe-box="30 250 280 160">
+      <text x="30" y="285" data-ccc-type-role="section-heading" font-family="Montserrat" font-size="36" font-weight="800" font-style="italic" fill="#FFFFFF">KEY FACTS</text>
+      <text x="30" y="350" data-ccc-type-role="evidence-number" font-family="Anton" font-size="49" font-weight="400" fill="#FFFFFF">27</text>
+      <text x="30" y="395" data-ccc-type-role="evidence-body" font-family="Montserrat" font-size="15" font-weight="600" fill="#FFFFFF">MARKETS</text>
     </g>
-    <g data-ccc-role="one-pager-takeaway" data-ccc-component="takeaway" data-ccc-bounds="240 240 180 180" data-ccc-text-inset="10 10 10 10" data-ccc-text-safe-box="250 250 160 160">
-      <text data-ccc-type-role="takeaway-heading" font-family="Montserrat" font-size="27" font-weight="700" fill="#FFFFFF">TAKEAWAY</text>
-      <text data-ccc-type-role="takeaway-body" font-family="Montserrat" font-size="14" font-weight="400" fill="#FFFFFF">BODY</text>
+    <g data-ccc-role="one-pager-takeaway" data-ccc-component="takeaway" data-ccc-bounds="360 240 300 180" data-ccc-text-inset="10 10 10 10" data-ccc-text-safe-box="370 250 280 160">
+      <text x="370" y="295" data-ccc-type-role="takeaway-heading" font-family="Montserrat" font-size="27" font-weight="700" fill="#FFFFFF">PROTECT CHOICE</text>
+      <text x="370" y="345" data-ccc-type-role="takeaway-body" font-family="Montserrat" font-size="14" font-weight="400" fill="#FFFFFF">TARGET HARM</text>
     </g>
-    <g data-ccc-role="one-pager-sources" data-ccc-component="sources" data-ccc-bounds="460 240 180 180" data-ccc-text-inset="10 10 10 10" data-ccc-text-safe-box="470 250 160 160"><text data-ccc-type-role="source" font-family="DM Mono" font-size="10.5" font-weight="400" fill="#FFFFFF">SOURCE</text></g>
-    <g data-ccc-role="one-pager-logo" data-ccc-component="logo" data-ccc-bounds="680 240 180 180" data-ccc-text-inset="0 0 0 0"/>
+    <g data-ccc-role="one-pager-sources" data-ccc-component="sources" data-ccc-bounds="700 350 260 70" data-ccc-text-inset="10 10 10 10" data-ccc-text-safe-box="710 360 240 50"><text x="710" y="390" data-ccc-type-role="source" font-family="DM Mono" font-size="10.5" font-weight="400" fill="#FFFFFF">SOURCE: TEST</text></g>
+    <g data-ccc-role="one-pager-logo" data-ccc-component="logo" data-ccc-bounds="1000 350 160 70" data-ccc-text-inset="0 0 0 0"/>
     <g data-ccc-connector="shaft-arrowhead"><path d="M1 1L20 20" stroke="#FFF7EF" stroke-width="3" stroke-dasharray="6 7"/><polygon points="20,20 15,18 18,15" fill="#FFF7EF"/><polygon points="1,1 5,3 3,5" fill="#FFF7EF"/></g>
     <g data-ccc-connector="shaft-arrowhead"><path d="M1 1L20 20" stroke="#E95C1F" stroke-width="3" stroke-dasharray="6 7"/><polygon points="20,20 15,18 18,15" fill="#E95C1F"/><polygon points="1,1 5,3 3,5" fill="#E95C1F"/></g>
     <g data-ccc-connector="shaft-arrowhead"><path d="M1 1L20 20" stroke="#E95C1F" stroke-width="3" stroke-dasharray="6 7"/><polygon points="20,20 15,18 18,15" fill="#E95C1F"/><polygon points="1,1 5,3 3,5" fill="#E95C1F"/></g>
@@ -312,8 +329,8 @@ test("one-pager SVG validation enforces the locked canvas, regions, and embedded
     template: "access_barriers",
     mode: "final",
   });
-  const crowded = validateOnePagerSvg({ svg: svg.replace('data-ccc-bounds="240 20 180 180"', 'data-ccc-bounds="190 20 180 180"'), mode: "final" });
-  const unsafeText = validateOnePagerSvg({ svg: svg.replace('data-ccc-text-safe-box="30 30 160 160"', 'data-ccc-text-safe-box="10 10 250 250"'), mode: "final" });
+  const crowded = validateOnePagerSvg({ svg: svg.replace('data-ccc-bounds="1000 210 100 100"', 'data-ccc-bounds="650 20 100 100"'), mode: "final" });
+  const unsafeText = validateOnePagerSvg({ svg: svg.replace('data-ccc-text-safe-box="30 30 280 140"', 'data-ccc-text-safe-box="10 10 350 250"'), mode: "final" });
   const dirtyArrow = validateOnePagerSvg({ svg: svg.replace('stroke-dasharray="6 7"', 'stroke-dasharray="8 8"'), mode: "final" });
   const markerArrow = validateOnePagerSvg({ svg: svg.replace('stroke="#FFF7EF" stroke-width="3"', 'stroke="#FFF7EF" stroke-width="3" marker-end="url(#arrow)"'), mode: "final" });
   const metadataOnlyRecreation = validateOnePagerSvg({ svg: svg.replace(referenceGeometry, ""), template: "material_cost_chain", mode: "final" });
@@ -363,12 +380,18 @@ test("Illustrator SVG validation rejects browser-only links, embedded web fonts,
     mode: "final",
     svg: `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" data-ccc-export="illustrator-svg-1.1" data-ccc-font-policy="editable-installed"><image xlink:href="data:image/png;base64,AAAA"/></svg>`,
   });
+  const diffCorrupted = validateIllustratorSvg({
+    mode: "final",
+    svg: `+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" data-ccc-export="illustrator-svg-1.1" data-ccc-font-policy="editable-installed"></svg>`,
+  });
 
   assert.equal(incompatible.ok, false);
   assert.match(incompatible.violations.join("\n"), /data:font/);
   assert.match(incompatible.violations.join("\n"), /xlink:href/);
   assert.match(incompatible.violations.join("\n"), /live SVG filter/);
   assert.equal(compatible.ok, true);
+  assert.equal(diffCorrupted.ok, false);
+  assert.match(diffCorrupted.violations.join("\n"), /diff markers/);
 });
 
 test("generated SVG artifacts are linted for brand drift", () => {

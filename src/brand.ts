@@ -11,6 +11,10 @@ export type SocialStyleVariant = "auto" | "navy_poster" | "petition_push" | "ora
 export const onePagerTemplateIds = ["material_cost_chain", "access_barriers"] as const;
 export type OnePagerTemplateId = (typeof onePagerTemplateIds)[number];
 export type OnePagerTemplateSelection = "auto" | OnePagerTemplateId;
+export const onePagerIllustrationZones: Record<OnePagerTemplateId, { x: number; y: number; width: number; height: number }> = {
+  material_cost_chain: { x: 540, y: 180, width: 570, height: 550 },
+  access_barriers: { x: 560, y: 110, width: 560, height: 680 },
+};
 export const quotePersonIds = ["bill", "david", "emil", "fabio", "fred", "stephen", "yael", "zoltan"] as const;
 export type QuotePersonId = (typeof quotePersonIds)[number];
 export type QuotePerson = {
@@ -290,6 +294,47 @@ export function getOnePagerReferenceAssets(basePath?: string) {
   });
 }
 
+function removeMutableReferenceContent(svg: string) {
+  return svg
+    .replace(/<text\b[^>]*>[\s\S]*?<\/text>/gi, "")
+    .replace(/<image\b[^>]*\/>/gi, "")
+    .replace(/<image\b[^>]*>[\s\S]*?<\/image>/gi, "");
+}
+
+function normalizeReferenceConnectors(svg: string, templateId: OnePagerTemplateId) {
+  const classes = templateId === "material_cost_chain"
+    ? { shaft: "cls-97", head: "cls-16" }
+    : { shaft: "cls-169", head: "cls-3" };
+  const pattern = new RegExp(`<path class=["']${classes.shaft}["'] d=["']([^"']+)["']\\s*\\/><polygon class=["']${classes.head}["'] points=["']([^"']+)["']\\s*\\/><polygon class=["']${classes.head}["'] points=["']([^"']+)["']\\s*\\/>`, "gi");
+  return svg.replace(pattern, (_match, d: string, first: string, second: string) => `<g data-ccc-connector="shaft-arrowhead"><path d="${d}" fill="none" stroke="#FFF7EF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6 7"/><polygon points="${first}" fill="#FFF7EF"/><polygon points="${second}" fill="#FFF7EF"/></g>`);
+}
+
+export function getOnePagerWorkingTemplateAssets(basePath?: string) {
+  const base = getAssetBase(basePath);
+  return onePagerTemplates.map((template) => {
+    const path = resolve(base, template.referenceAsset);
+    const exists = existsSync(path);
+    if (!exists) return { ...template, path, exists, role: "clean one-pager production shell", svg: undefined };
+    const source = readFileSync(path, "utf8");
+    const sourceTextElements = [...source.matchAll(/<text\b/gi)].length;
+    const sourceImageElements = [...source.matchAll(/<image\b/gi)].length;
+    let svg = normalizeReferenceConnectors(removeMutableReferenceContent(source), template.id);
+    const rootMetadata = ` data-ccc-asset="one-pager" data-ccc-layout-lock="one-pager-reference-exact" data-ccc-one-pager-template="${template.id}" data-ccc-template-source="${template.referenceAsset}" data-ccc-clean-template="mutable-content-cleared-v1" data-ccc-typography-contract="${template.id}-reference" data-ccc-component-grid="reference-spaced"`;
+    svg = svg.replace(/<svg\b([^>]*)>/i, `<svg$1${rootMetadata}>`);
+    svg = makeIllustratorSafeSvg(svg);
+    return {
+      ...template,
+      path,
+      exists,
+      role: "clean one-pager production shell with all source text and raster illustrations removed before composition",
+      sourceTextElementsRemoved: sourceTextElements,
+      sourceImageElementsRemoved: sourceImageElements,
+      illustrationZone: onePagerIllustrationZones[template.id],
+      svg,
+    };
+  });
+}
+
 function validateColorHarmony(colors: string[], mode: ValidationMode) {
   const violations: string[] = [];
   const warnings: string[] = [];
@@ -547,6 +592,7 @@ export function validateIllustratorSvg(input: { svg: string; mode?: ValidationMo
   const mode = input.mode ?? "final";
   const violations: string[] = [];
   const warnings: string[] = [];
+  const isStandaloneSvg = input.svg.trimStart().startsWith("<svg");
   const root = input.svg.match(/<svg\b[^>]*>/i)?.[0] ?? "";
   const imageTags = [...input.svg.matchAll(/<image\b[^>]*>/gi)].map((match) => match[0]);
   const hasSvg11 = /\bversion\s*=\s*["']1\.1["']/i.test(root);
@@ -560,13 +606,14 @@ export function validateIllustratorSvg(input: { svg: string; mode?: ValidationMo
   });
   const embeddedSvgImages = imageTags.filter((tag) => /\bxlink:href\s*=\s*["']data:image\/svg\+xml/i.test(tag));
   const liveFilters = /<filter\b|\sfilter\s*=\s*["']url\(/i.test(input.svg);
+  if (!isStandaloneSvg) severityPush(mode, violations, warnings, "Illustrator-safe output must be a standalone SVG whose first non-whitespace character is the opening <svg tag; remove prose, Markdown fences, and diff markers such as +.");
   if (!hasSvg11 || !hasXlinkNamespace || !hasExportContract) severityPush(mode, violations, warnings, "SVG must declare the Illustrator SVG 1.1 export contract, including version=\"1.1\", xmlns:xlink, and data-ccc-export=\"illustrator-svg-1.1\".");
   if (hasEmbeddedWebFonts) severityPush(mode, violations, warnings, "Illustrator-safe SVG must not embed fonts through CSS data:font URLs. Keep editable text with packaged fonts installed, or convert final text to outlines.");
   if (svg2ImageHrefs.length) severityPush(mode, violations, warnings, "Illustrator-safe raster images must use SVG 1.1 xlink:href, not the browser-oriented SVG 2 href attribute.");
   if (nonEmbeddedImages.length) severityPush(mode, violations, warnings, "Every Illustrator-safe raster image must remain self-contained as an xlink:href base64 PNG, JPEG, or WebP data URI.");
   if (embeddedSvgImages.length) severityPush(mode, violations, warnings, "Do not place an SVG inside another SVG as a data:image/svg+xml link. Inline official vector logo markup instead.");
   if (liveFilters) severityPush(mode, violations, warnings, "Illustrator-safe SVG must not use live SVG filter effects. Replace them with ordinary vector shapes or flatten the effect before handoff.");
-  return { ok: violations.length === 0, mode, violations, warnings, hasSvg11, hasXlinkNamespace, hasExportContract, hasEmbeddedWebFonts, imageCount: imageTags.length, svg2ImageHrefs: svg2ImageHrefs.length, nonEmbeddedImages: nonEmbeddedImages.length, embeddedSvgImages: embeddedSvgImages.length, liveFilters };
+  return { ok: violations.length === 0, mode, violations, warnings, isStandaloneSvg, hasSvg11, hasXlinkNamespace, hasExportContract, hasEmbeddedWebFonts, imageCount: imageTags.length, svg2ImageHrefs: svg2ImageHrefs.length, nonEmbeddedImages: nonEmbeddedImages.length, embeddedSvgImages: embeddedSvgImages.length, liveFilters };
 }
 
 export function selectOnePagerTemplate(request: string, requested: OnePagerTemplateSelection = "auto") {
@@ -650,7 +697,9 @@ export function createOnePagerBrief(input: {
   const mode = input.mode ?? "draft";
   const template = selectOnePagerTemplate(input.request, input.template ?? "auto");
   const typographyContract = onePagerConfig.typographyContracts[template.id];
-  const referenceResourceUri = `brand://ccc/one-pager-references/${template.referenceAsset.split("/").pop()}`;
+  const referenceResourceUri = `brand://ccc/one-pager-working-templates/${template.referenceAsset.split("/").pop()}`;
+  const visualReferenceResourceUri = `brand://ccc/one-pager-references/${template.referenceAsset.split("/").pop()}`;
+  const illustrationZone = onePagerIllustrationZones[template.id];
   const referencePath = resolve(getAssetBase(), template.referenceAsset);
   const referenceShapes = existsSync(referencePath) ? [...onePagerGeometryCounts(readFileSync(referencePath, "utf8")).values()].reduce((sum, count) => sum + count, 0) : 0;
   const centralObject = input.centralObject?.trim() || "the single physical object that best explains the policy issue";
@@ -663,27 +712,30 @@ export function createOnePagerBrief(input: {
   const prompt = [
     `Create one CCC policy one-pager using the strict ${template.id} reference template.`,
     `User request: ${input.request}`,
-    `Reference SVG: ${referenceResourceUri}`,
-    "Open and duplicate the linked reference SVG before writing or drawing anything. The reference resource is a required source file, not optional inspiration.",
+    `Clean working SVG: ${referenceResourceUri}`,
+    `Populated visual reference (view only; never use as working artwork): ${visualReferenceResourceUri}`,
+    "Open the linked clean working SVG before writing or drawing anything. It already has every original text element and raster illustration removed. Never paste, merge, append, or layer new content over the populated visual reference.",
     `Canvas: ${onePagerConfig.canvas.viewBox} (${onePagerConfig.canvas.widthPx} x ${onePagerConfig.canvas.heightPx} reference units).`,
-    "Start from the supplied SVG itself. Do not recreate, reinterpret, simplify, stretch, or rearrange the page.",
+    "Start from the supplied clean working SVG itself. Do not recreate, reinterpret, simplify, stretch, rearrange, or reintroduce deleted source copy or images.",
     `Preserve the template's ${template.titleStyle}, navy/orange/warm-white color roles, section heights, headline origin, brush labels, arrows, dividers, cards, footer, source line, and logo geometry exactly.`,
     `Typography contract: display title = ${typographyContract.displayTitle}; repeated component headings = ${typographyContract.componentHeadings}; repeated component body = ${typographyContract.componentBody}; statistics = ${typographyContract.statistics}; labels and sources = ${typographyContract.labelsAndSources}. Match the reference font style and size for every slot; never mix families, weights, styles, or sizes within a repeated component role.`,
-    "The only illustration change is the contextual object system: replace the source house/AC imagery with a subject-specific central object and related supporting cutouts while preserving the same illustration boxes, scale relationships, transparent backgrounds, edge treatment, and arrow connections.",
+    "The only illustration addition is one self-contained contextual object composite on a transparent background. The source house/AC and supporting raster cutouts have already been removed from the clean shell; never place them back.",
     `Central object: ${centralObject}.`,
+    `Central illustration safe zone: x=${illustrationZone.x}, y=${illustrationZone.y}, width=${illustrationZone.width}, height=${illustrationZone.height}. Use one <image data-ccc-role="one-pager-central-illustration"> with those bounds as the maximum placement area, preserveAspectRatio="xMidYMid meet", and no crop. Text may not intersect this image box.`,
     `Illustration grammar: ${template.illustrationGrammar}`,
     "Generate a clean editorial photomontage/cutaway object on transparent background, with crisp realistic edges and no scene background. Do not use a generic AI illustration, painterly rendering, 3D blob, floating circle decoration, or stock-photo rectangle.",
     "Keep every illustration fully inside its assigned reference zone. Never cover headline, callout, statistic, takeaway, source, or logo text. Embed every raster illustration as a base64 data:image URI in the final SVG.",
     "Export for Adobe Illustrator as SVG 1.1: declare version=\"1.1\", xmlns:xlink=\"http://www.w3.org/1999/xlink\", and data-ccc-export=\"illustrator-svg-1.1\". Every embedded raster must use xlink:href, never SVG 2 href.",
     "Do not embed fonts with @font-face or data:font URLs. Keep editable text assigned to the packaged CCC fonts and add data-ccc-font-policy=\"editable-installed\"; users install the packaged fonts before editing. Do not use live SVG filters. Inline official vector logos instead of linking data:image/svg+xml files.",
-    "Replace wording only within the existing text slots. Match the source line count, hierarchy, alignment, and approximate character density; shorten copy instead of moving elements or reducing type below the reference scale.",
+    "Add wording only inside explicit data-ccc-component groups. Every visible <text> must belong to one component, use direct x/y coordinates, and carry the real data-ccc-type-role on that visible text. Do not use orphan text, hidden labels, x=0/y=0 compliance placeholders, transforms, tspans, textLength, or lengthAdjust.",
+    "Match the source line count, hierarchy, alignment, and approximate character density; shorten copy instead of moving elements or reducing type below the reference scale. Use one <text> element per line so every line can be measured independently.",
     "Required content structure: one dominant headline and deck; three policy callouts around the central object; one orange lead-stat brush panel; one dark bridge statement; the reference lower-section heading; three or four evidence cards according to the selected template; one bottom consumer-choice conclusion; source footer; official CCC logo.",
-    "Component alignment contract: every text-bearing group must declare data-ccc-component, data-ccc-bounds=\"x y width height\", data-ccc-text-inset, and a measured data-ccc-text-safe-box=\"x y width height\" contained inside its component bounds. Keep at least 24 reference units between component bounds. Use one shared left inset, top inset, baseline interval, font family, weight, style, and size for equivalent callouts or cards. Text may not touch a panel edge, leave its text-safe box, or enter another component.",
-    "Arrow contract: include exactly three data-ccc-connector=\"shaft-arrowhead\" groups. Each must contain one visible 3-unit stroked path with stroke-dasharray=\"6 7\" plus two compact filled polygon/path arrowheads, tangent-aligned and physically touching the two shaft endpoints. Do not cross a text-safe box. Do not use marker-start, marker-mid, or marker-end because Illustrator can import a marker without its shaft.",
+    "Component alignment contract: every text-bearing group must declare data-ccc-component, data-ccc-bounds=\"x y width height\", data-ccc-text-inset, and a measured data-ccc-text-safe-box=\"x y width height\" contained inside its component bounds. Keep at least 24 reference units between repeated callout/card components. Use one shared left inset, top inset, baseline interval, font family, weight, style, and size for equivalent callouts or cards. The rendered bounds of every text line must remain inside its text-safe box, must not collide with another text line, and must not intersect the central illustration.",
+    "Arrow contract: the clean working SVG already contains exactly three normalized data-ccc-connector=\"shaft-arrowhead\" groups. Reuse and reposition those groups only when required by the new object; never add a second connector set. Each group must retain one visible 3-unit shaft with stroke-dasharray=\"6 7\" plus two compact filled arrowheads. Do not cross a text-safe box or use SVG markers.",
     `Headline: ${input.headline?.trim() || "write from the request"}`,
     `Closing takeaway: ${input.keyMessage?.trim() || "write from the request"}`,
     `Sources: ${sources.length ? sources.join(" • ") : "required before final output"}`,
-    `Add data-ccc-asset="one-pager", data-ccc-layout-lock="one-pager-reference-exact", data-ccc-template-source="${template.referenceAsset}", data-ccc-typography-contract="${template.id}-reference", data-ccc-component-grid="reference-spaced", the selected template id, and data-ccc-role markers for title, central illustration, callouts, lead statistic, evidence cards, takeaway, sources, and logo. Add data-ccc-type-role plus direct font-family, font-weight, font-style, and font-size attributes to every required typography role; do not rely on inherited or class-only font declarations. Run validate_one_pager_svg and validate_illustrator_svg; fix every violation before handoff. Generic validate_svg_artifact is not a substitute for the dedicated one-pager validator.`,
+    `Preserve data-ccc-clean-template="mutable-content-cleared-v1", data-ccc-asset="one-pager", data-ccc-layout-lock="one-pager-reference-exact", data-ccc-template-source="${template.referenceAsset}", data-ccc-typography-contract="${template.id}-reference", data-ccc-component-grid="reference-spaced", the selected template id, and data-ccc-role markers for title, central illustration, callouts, lead statistic, evidence cards, takeaway, sources, and logo. Add data-ccc-type-role plus direct x, y, font-family, font-weight, font-style, and font-size attributes to every visible text line; do not rely on inherited or class-only declarations. Run validate_one_pager_svg and validate_illustrator_svg on the exact downloaded file; fix every violation before handoff. Generic validate_svg_artifact is not a substitute for the dedicated one-pager validator.`,
   ].join("\n");
   return {
     ok: violations.length === 0,
@@ -691,6 +743,7 @@ export function createOnePagerBrief(input: {
     template,
     referenceAsset: template.referenceAsset,
     referenceResourceUri,
+    visualReferenceResourceUri,
     templateIntegrity: {
       required: true,
       referenceShapes,
@@ -701,11 +754,54 @@ export function createOnePagerBrief(input: {
     lockedElements: onePagerConfig.lockedElements,
     mutableElements: onePagerConfig.mutableElements,
     centralObject,
+    illustrationZone,
     sources,
     violations,
     warnings,
     prompt,
   };
+}
+
+type OnePagerTextRecord = {
+  markup: string;
+  openingTag: string;
+  text: string;
+  x?: number;
+  y?: number;
+  size?: number;
+  family?: string;
+  hasTransform: boolean;
+  hasTspan: boolean;
+  box?: [number, number, number, number];
+};
+
+function onePagerTextRecords(svg: string): OnePagerTextRecord[] {
+  return [...svg.matchAll(/(<text\b([^>]*)>([\s\S]*?)<\/text>)/gi)].map((match) => {
+    const markup = match[1];
+    const openingTag = `<text${match[2]}>`;
+    const rawText = match[3].replace(/<[^>]+>/g, " ").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&quot;/gi, "\"").replace(/&apos;/gi, "'").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/\s+/g, " ").trim();
+    const x = Number(attr(openingTag, "x"));
+    const y = Number(attr(openingTag, "y"));
+    const size = Number(attr(openingTag, "font-size")?.match(/[0-9.]+/)?.[0]);
+    const family = attr(openingTag, "font-family")?.split(",")[0]?.trim().replace(/^['"]|['"]$/g, "");
+    const hasTransform = /\btransform\s*=/i.test(openingTag);
+    const hasTspan = /<tspan\b/i.test(markup);
+    let box: [number, number, number, number] | undefined;
+    if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(size) && size > 0 && rawText && !hasTransform && !hasTspan) {
+      const widthFactor = family === "Anton" ? 0.53 : family === "DM Mono" ? 0.6 : 0.55;
+      const width = Math.max(size * 0.3, [...rawText].length * size * widthFactor);
+      const anchor = (attr(openingTag, "text-anchor") ?? "start").toLowerCase();
+      const left = anchor === "middle" ? x - width / 2 : anchor === "end" ? x - width : x;
+      box = [left, y - size * 0.82, width, size * 1.05];
+    }
+    return { markup, openingTag, text: rawText, x: Number.isFinite(x) ? x : undefined, y: Number.isFinite(y) ? y : undefined, size: Number.isFinite(size) ? size : undefined, family, hasTransform, hasTspan, box };
+  });
+}
+
+function boxesIntersect(left: [number, number, number, number], right: [number, number, number, number], gutter = 0) {
+  const [lx, ly, lw, lh] = left;
+  const [rx, ry, rw, rh] = right;
+  return lx < rx + rw + gutter && lx + lw + gutter > rx && ly < ry + rh + gutter && ly + lh + gutter > ry;
 }
 
 export function validateOnePagerSvg(input: { svg: string; template?: OnePagerTemplateId; mode?: ValidationMode }) {
@@ -731,6 +827,7 @@ export function validateOnePagerSvg(input: { svg: string; template?: OnePagerTem
   const illustratorCompatibility = validateIllustratorSvg({ svg: input.svg, mode });
   const typographyContract = input.svg.match(/data-ccc-typography-contract=["']([^"']+)["']/i)?.[1];
   const componentGrid = /data-ccc-component-grid=["']reference-spaced["']/i.test(input.svg);
+  const cleanTemplate = /data-ccc-clean-template=["']mutable-content-cleared-v1["']/i.test(rootTag);
   const expectedTypeSpecs: Record<string, { family: string; weight: string; style: "normal" | "italic" }> = {
     "page-kicker": { family: "DM Mono", weight: "400", style: "normal" },
     "display-title": { family: "Anton", weight: "400", style: "normal" },
@@ -744,6 +841,12 @@ export function validateOnePagerSvg(input: { svg: string; template?: OnePagerTem
     "takeaway-body": { family: "Montserrat", weight: "400", style: "normal" },
     source: { family: "DM Mono", weight: "400", style: "normal" },
   };
+  const componentBlocks = [...input.svg.matchAll(/(<g\b[^>]*data-ccc-component=["']([^"']+)["'][^>]*>[\s\S]*?<\/g>)/gi)].map((match) => ({ markup: match[1], id: match[2], openingTag: match[1].match(/^<g\b[^>]*>/i)?.[0] ?? "" }));
+  const textRecords = onePagerTextRecords(input.svg);
+  const orphanText = textRecords.filter((record) => !componentBlocks.some((component) => component.markup.includes(record.markup)));
+  const unmeasurableText = textRecords.filter((record) => record.hasTransform || record.hasTspan || !record.box);
+  const placeholderText = textRecords.filter((record) => (record.x === 0 && record.y === 0) || /^(?:kicker|title|callout|body|stat|section|number|evidence|takeaway|drivers|sources)$/i.test(record.text));
+  const legacyReferenceText = textRecords.filter((record) => /\bclass=["']cls-\d+/i.test(record.openingTag));
   const typeTags = [...input.svg.matchAll(/<text\b[^>]*data-ccc-type-role=["']([^"']+)["'][^>]*>/gi)].map((match) => ({ role: match[1], tag: match[0] }));
   const missingTypeRoles = Object.keys(expectedTypeSpecs).filter((role) => !typeTags.some((entry) => entry.role === role));
   const inconsistentTypeRoles: string[] = [];
@@ -785,6 +888,46 @@ export function validateOnePagerSvg(input: { svg: string; template?: OnePagerTem
       if ((xOverlap > 0 && yOverlap > 0) || (yOverlap > 0 && horizontalGap >= 0 && horizontalGap < 24) || (xOverlap > 0 && verticalGap >= 0 && verticalGap < 24)) crowdedComponents.push(`${left.id}/${right.id}`);
     }
   }
+  const textOutsideSafeBoxes: string[] = [];
+  for (const record of textRecords) {
+    if (!record.box) continue;
+    const component = componentBlocks.find((entry) => entry.markup.includes(record.markup));
+    if (!component) continue;
+    const safe = attr(component.openingTag, "data-ccc-text-safe-box")?.split(/\s+/).map(Number) ?? [];
+    if (safe.length !== 4 || !safe.every(Number.isFinite)) continue;
+    const [sx, sy, sw, sh] = safe;
+    const [tx, ty, tw, th] = record.box;
+    if (tx < sx || ty < sy || tx + tw > sx + sw || ty + th > sy + sh) textOutsideSafeBoxes.push(`${component.id}:${record.text.slice(0, 32)}`);
+  }
+  const textCollisions: string[] = [];
+  const measurableText = textRecords.filter((record): record is OnePagerTextRecord & { box: [number, number, number, number] } => Boolean(record.box));
+  for (let leftIndex = 0; leftIndex < measurableText.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < measurableText.length; rightIndex += 1) {
+      const left = measurableText[leftIndex];
+      const right = measurableText[rightIndex];
+      if (boxesIntersect(left.box, right.box, 2)) textCollisions.push(`${left.text.slice(0, 24)} / ${right.text.slice(0, 24)}`);
+    }
+  }
+  const centralIllustrationTags = [...input.svg.matchAll(/<image\b[^>]*data-ccc-role=["']one-pager-central-illustration["'][^>]*>/gi)].map((match) => match[0]);
+  const centralIllustrationBounds = centralIllustrationTags.map((tag) => [Number(attr(tag, "x")), Number(attr(tag, "y")), Number(attr(tag, "width")), Number(attr(tag, "height"))] as [number, number, number, number]);
+  const illustrationZone = templateId ? onePagerIllustrationZones[templateId] : undefined;
+  const badCentralIllustrations = centralIllustrationTags.filter((tag, index) => {
+    const [x, y, width, height] = centralIllustrationBounds[index];
+    if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0 || attr(tag, "preserveAspectRatio") !== "xMidYMid meet") return true;
+    if (!illustrationZone) return false;
+    return x < illustrationZone.x || y < illustrationZone.y || x + width > illustrationZone.x + illustrationZone.width || y + height > illustrationZone.y + illustrationZone.height;
+  });
+  const textIllustrationCollisions: string[] = [];
+  for (const text of measurableText) for (const imageBounds of centralIllustrationBounds) if (imageBounds.every(Number.isFinite) && boxesIntersect(text.box, imageBounds, 8)) textIllustrationCollisions.push(text.text.slice(0, 40));
+  let retainedSourceImages = 0;
+  if (templateId) {
+    const sourcePath = resolve(getAssetBase(), onePagerTemplates.find((template) => template.id === templateId)!.referenceAsset);
+    if (existsSync(sourcePath)) {
+      const sourceSvg = readFileSync(sourcePath, "utf8");
+      const sourceImages = [...sourceSvg.matchAll(/<image\b[^>]*(?:href|xlink:href)=["']([^"']+)["'][^>]*>/gi)].map((match) => match[1]);
+      retainedSourceImages = sourceImages.filter((href) => input.svg.includes(href)).length;
+    }
+  }
   const connectorBlocks = [...input.svg.matchAll(/<g\b[^>]*data-ccc-connector=["']shaft-arrowhead["'][^>]*>[\s\S]*?<\/g>/gi)].map((match) => match[0]);
   const badConnectors = connectorBlocks.filter((block) => {
     const shaft = block.match(/<path\b[^>]*stroke=["'](?:#(?:FFF7EF|E95C1F)|#(?:fff7ef|e95c1f))["'][^>]*>/i)?.[0] ?? "";
@@ -795,10 +938,17 @@ export function validateOnePagerSvg(input: { svg: string; template?: OnePagerTem
   if (viewBox !== onePagerConfig.canvas.viewBox) severityPush(mode, violations, warnings, `One-pager viewBox must remain exactly ${onePagerConfig.canvas.viewBox}; received ${viewBox || "missing"}.`);
   if (!templateId || (input.template && templateId !== input.template)) severityPush(mode, violations, warnings, "One-pager must declare the selected material_cost_chain or access_barriers template id.");
   if (!locked) severityPush(mode, violations, warnings, "One-pager must declare the strict one-pager reference layout lock.");
+  if (!cleanTemplate) severityPush(mode, violations, warnings, "One-pager must start from the clean production shell and preserve data-ccc-clean-template=\"mutable-content-cleared-v1\". Do not compose over the populated visual reference.");
+  if (legacyReferenceText.length || retainedSourceImages) severityPush(mode, violations, warnings, `Populated reference content remains underneath the new artwork${legacyReferenceText.length ? `; retained source-style text elements: ${legacyReferenceText.length}` : ""}${retainedSourceImages ? `; retained source raster illustrations: ${retainedSourceImages}` : ""}. Start again from the clean working SVG.`);
   if (!templateIntegrity?.ok) severityPush(mode, violations, warnings, templateIntegrity?.message ?? "One-pager must preserve the selected reference SVG geometry and declare its exact data-ccc-template-source.");
   if (typographyContract !== `${templateId}-reference`) severityPush(mode, violations, warnings, "One-pager must declare and follow the selected template-specific typography contract.");
   if (missingTypeRoles.length || inconsistentTypeRoles.length) severityPush(mode, violations, warnings, `One-pager typography roles must declare and use the reference font, weight, style, and one consistent size per repeated component${missingTypeRoles.length ? `; missing roles: ${missingTypeRoles.join(", ")}` : ""}${inconsistentTypeRoles.length ? `; inconsistent roles: ${inconsistentTypeRoles.join(", ")}` : ""}.`);
   if (!componentGrid || componentTags.length < 8 || malformedComponents.length || unsafeTextComponents.length) severityPush(mode, violations, warnings, `One-pager components must use the reference-spaced grid with explicit bounds, text insets, and contained text-safe boxes${malformedComponents.length ? `; malformed components: ${malformedComponents.join(", ")}` : ""}${unsafeTextComponents.length ? `; text-safe boxes outside components: ${unsafeTextComponents.join(", ")}` : ""}.`);
+  if (orphanText.length || unmeasurableText.length || placeholderText.length) severityPush(mode, violations, warnings, `Every visible one-pager text line must be measurable and belong to a real component; do not use source text, transforms, tspans, or hidden compliance placeholders${orphanText.length ? `; orphan lines: ${orphanText.length}` : ""}${unmeasurableText.length ? `; unmeasurable lines: ${unmeasurableText.length}` : ""}${placeholderText.length ? `; placeholder lines: ${placeholderText.length}` : ""}.`);
+  if (textOutsideSafeBoxes.length) severityPush(mode, violations, warnings, `Rendered text extends outside declared text-safe boxes: ${[...new Set(textOutsideSafeBoxes)].slice(0, 12).join(", ")}. Shorten or rewrap copy; do not shrink or stretch it.`);
+  if (textCollisions.length) severityPush(mode, violations, warnings, `Rendered text lines overlap: ${[...new Set(textCollisions)].slice(0, 12).join(", ")}.`);
+  if (centralIllustrationTags.length !== 1 || badCentralIllustrations.length) severityPush(mode, violations, warnings, `One-pager must contain exactly one uncropped central illustration inside the selected template safe zone using preserveAspectRatio=\"xMidYMid meet\"${illustrationZone ? ` (${illustrationZone.x} ${illustrationZone.y} ${illustrationZone.width} ${illustrationZone.height})` : ""}.`);
+  if (textIllustrationCollisions.length) severityPush(mode, violations, warnings, `Central illustration overlaps text: ${[...new Set(textIllustrationCollisions)].slice(0, 12).join(", ")}. Resize or reposition the illustration inside its safe zone.`);
   if (crowdedComponents.length) severityPush(mode, violations, warnings, `One-pager components overlap or have less than the 24-unit reference gutter: ${[...new Set(crowdedComponents)].join(", ")}.`);
   if (connectorBlocks.length !== 3 || badConnectors.length) severityPush(mode, violations, warnings, "One-pager must include exactly three clean Illustrator-safe connector groups, each built from one 3-unit shaft with a 6 7 dash rhythm plus two compact vector arrowheads. SVG marker-only, detached, oversized, or inconsistent arrows are not accepted.");
   if (/\bmarker-(?:start|mid|end)\s*=/i.test(input.svg)) severityPush(mode, violations, warnings, "One-pager connectors must not rely on SVG markers; Illustrator can import the arrowhead without its guide line. Use explicit shaft and arrowhead geometry.");
@@ -808,7 +958,7 @@ export function validateOnePagerSvg(input: { svg: string; template?: OnePagerTem
   if (!hasEmbeddedImages) severityPush(mode, violations, warnings, "All contextual one-pager illustrations must be embedded base64 data:image assets; external or missing images are not accepted.");
   violations.push(...illustratorCompatibility.violations);
   warnings.push(...illustratorCompatibility.warnings);
-  return { ok: violations.length === 0, mode, violations, warnings, templateId, viewBox, colors, fontFamilies, images: images.length, hasEmbeddedImages, hasPaletteAnchors, locked, templateIntegrity, missingRoles, illustratorCompatibility, typographyContract, missingTypeRoles, inconsistentTypeRoles, componentGrid, components: componentTags.length, malformedComponents, unsafeTextComponents, crowdedComponents: [...new Set(crowdedComponents)], connectors: connectorBlocks.length, badConnectors: badConnectors.length };
+  return { ok: violations.length === 0, mode, violations, warnings, templateId, viewBox, colors, fontFamilies, images: images.length, hasEmbeddedImages, hasPaletteAnchors, locked, cleanTemplate, legacyReferenceText: legacyReferenceText.length, retainedSourceImages, templateIntegrity, missingRoles, illustratorCompatibility, typographyContract, missingTypeRoles, inconsistentTypeRoles, componentGrid, components: componentTags.length, malformedComponents, unsafeTextComponents, orphanText: orphanText.length, unmeasurableText: unmeasurableText.length, placeholderText: placeholderText.length, textOutsideSafeBoxes: [...new Set(textOutsideSafeBoxes)], textCollisions: [...new Set(textCollisions)], centralIllustrations: centralIllustrationTags.length, badCentralIllustrations: badCentralIllustrations.length, textIllustrationCollisions: [...new Set(textIllustrationCollisions)], crowdedComponents: [...new Set(crowdedComponents)], connectors: connectorBlocks.length, badConnectors: badConnectors.length };
 }
 
 export function createGenerationPrompt(input: { request: string; outputType: "social_post" | "one_pager" | "video_graphic" | "policy_document" | "website_section" | "ad" | "general"; includeNegativePrompt: boolean }) {

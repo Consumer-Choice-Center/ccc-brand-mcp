@@ -11,6 +11,7 @@ import {
   createSocialSvg,
   getPostReferenceAssets,
   getOnePagerReferenceAssets,
+  getOnePagerWorkingTemplateAssets,
   getBrandSection,
   postReferencePaths,
   onePagerReferencePaths,
@@ -29,7 +30,7 @@ import {
 
 const server = new McpServer({
   name: "ccc-brand-mcp",
-  version: "0.7.4",
+  version: "0.7.5",
 });
 
 const sectionSchema = z
@@ -127,7 +128,7 @@ server.resource("ccc-one-pager-references", "brand://ccc/one-pager-references", 
         uri: uri.href,
         mimeType: "application/json",
         text: asText({
-          usage: "Strict one-pager production templates. Select one composition, preserve its complete layout, and replace only fitted copy plus the contextual central/supporting object illustrations.",
+          usage: "Visual references only. Do not use these populated files as working artwork. Use brand://ccc/one-pager-working-templates so original copy and raster illustrations cannot remain underneath new content.",
           canvas: brand.visualSystem.onePagers.canvas,
           lockedElements: brand.visualSystem.onePagers.lockedElements,
           mutableElements: brand.visualSystem.onePagers.mutableElements,
@@ -148,6 +149,47 @@ server.resource("ccc-one-pager-references", "brand://ccc/one-pager-references", 
     ],
   };
 });
+
+server.resource("ccc-one-pager-working-templates", "brand://ccc/one-pager-working-templates", async (uri) => {
+  const templates = getOnePagerWorkingTemplateAssets();
+  return {
+    contents: [
+      {
+        uri: uri.href,
+        mimeType: "application/json",
+        text: asText({
+          usage: "Mandatory clean production shells. All reference text and raster illustrations have already been removed; add new content only inside declared components and use the normalized existing connector groups.",
+          canvas: brand.visualSystem.onePagers.canvas,
+          componentLayoutRules: brand.visualSystem.onePagers.componentLayoutRules,
+          templates: templates.map(({ svg, ...template }) => template),
+        }),
+      },
+      ...templates
+        .filter((template) => template.exists && template.svg)
+        .map((template) => ({
+          uri: `${uri.href}/${template.referenceAsset.split("/").pop()}`,
+          mimeType: "image/svg+xml",
+          text: template.svg ?? "",
+        })),
+    ],
+  };
+});
+
+for (const template of onePagerTemplates) {
+  const fileName = template.referenceAsset.split("/").pop()!;
+  server.resource(`ccc-one-pager-working-${template.id}`, `brand://ccc/one-pager-working-templates/${fileName}`, async (uri) => {
+    const working = getOnePagerWorkingTemplateAssets().find((entry) => entry.id === template.id);
+    return {
+      contents: [{ uri: uri.href, mimeType: "image/svg+xml", text: working?.svg ?? "" }],
+    };
+  });
+  server.resource(`ccc-one-pager-reference-${template.id}`, `brand://ccc/one-pager-references/${fileName}`, async (uri) => {
+    const reference = getOnePagerReferenceAssets().find((entry) => entry.id === template.id);
+    return {
+      contents: [{ uri: uri.href, mimeType: "image/svg+xml", text: reference?.svg ?? "" }],
+    };
+  });
+}
 
 server.tool(
   "get_brand_guidelines",
@@ -249,7 +291,7 @@ server.tool(
 
 server.tool(
   "create_one_pager",
-  "Start a strict CCC one-pager from one of the two packaged reference SVGs. Auto-selects the material/cost-chain or access/barriers composition and returns a direct resource link to the required source SVG. The linked SVG must be duplicated as the working file; freeform or recreated one-pager layouts are invalid. Only fitted copy plus context-specific embedded object illustrations may change.",
+  "Start a strict CCC one-pager from a cleaned production shell derived from one of the two packaged reference SVGs. The linked working SVG has all original copy and raster illustrations removed, retains the locked geometry, and contains normalized connector shafts and arrowheads. Never append content to the populated visual reference.",
   {
     request: z.string().min(1).max(4000).describe("The policy topic, argument, audience, and evidence the one-pager must communicate."),
     template: z.enum(["auto", ...onePagerTemplateIds]).default("auto").describe("Use auto unless the request explicitly calls for the material/cost-chain or access/barriers composition."),
@@ -267,9 +309,9 @@ server.tool(
         {
           type: "resource_link" as const,
           name: `${brief.template.id}-one-pager-source-svg`,
-          title: `Required CCC ${brief.template.label} source SVG`,
+          title: `Required clean CCC ${brief.template.label} working SVG`,
           uri: brief.referenceResourceUri,
-          description: "Duplicate this exact SVG before changing copy or contextual illustrations. Final validation measures retained geometry against it.",
+          description: "Use this cleaned SVG directly. Its original copy and raster illustrations are already removed; do not merge it with the populated visual reference.",
           mimeType: "image/svg+xml",
         },
       ],
