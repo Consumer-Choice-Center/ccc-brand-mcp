@@ -100,12 +100,12 @@ Use `outputType: "one_pager"` to include the locked one-pager reference rules au
 
 ### `create_one_pager`
 
-Creates the generation contract for a CCC policy one-pager. The tool selects one of two packaged SVG templates:
+Creates the generation contract for a CCC policy one-pager and returns a direct MCP resource link to the selected source SVG. The source file must be opened and duplicated before any copy or imagery is changed. The tool selects one of two packaged SVG templates:
 
 - `material_cost_chain`: tariffs, costs, product components, supply chains, and material flows
 - `access_barriers`: permits, approvals, restrictions, health, safety, and product-access barriers
 
-Both templates use the exact `0 0 1186.51 1535.49` canvas. The selected SVG is a strict production template: canvas, section heights, typography hierarchy, headline origin, navy/orange/warm-white color roles, brush labels, arrows, rules, cards, footer, source line, and logo geometry remain fixed. Only fitted wording and the contextual object illustrations may change.
+Both templates use the exact `0 0 1186.51 1535.49` canvas. The selected SVG is a strict production template: canvas, section heights, typography hierarchy, headline origin, navy/orange/warm-white color roles, brush labels, arrows, rules, cards, footer, source line, and logo geometry remain fixed. Only fitted wording and the contextual object illustrations may change. Final SVGs must declare the exact `data-ccc-template-source` returned by the tool and retain at least 90% of the selected reference's measured vector geometry.
 
 The central illustration must depict the physical object most directly connected to the topic. It should match the supplied photorealistic transparent-background cutout/cutaway style, remain inside the original illustration zone, avoid every text area, and be embedded as a base64 image through SVG 1.1 `xlink:href` in the final SVG.
 
@@ -123,7 +123,7 @@ The central illustration must depict the physical object most directly connected
 
 ### `validate_one_pager_svg`
 
-Validates the completed one-pager before handoff. It enforces the reference canvas and layout lock, template id, CCC palette anchors, required regions, the approved Anton/Montserrat/DM Mono/Hind font set, template-specific family/weight/style roles, consistent type sizes, contained text-safe boxes, and a minimum 24-unit component gutter. It also requires three clean double-ended connectors with one 3-unit shaft, a `6 7` dash rhythm, two compact tangent-aligned arrowheads, and no marker-only geometry. Georgia, Times, serif substitutes, detached arrows, text-safe-box overflow, and Illustrator-incompatible SVG constructs are rejected.
+Validates the completed one-pager before handoff. It first compares the SVG's paths, panels, dividers, brush shapes, and connector geometry to the declared packaged source template; metadata without retained geometry fails. It then enforces the reference canvas and layout lock, template id, CCC palette anchors, required regions, the approved Anton/Montserrat/DM Mono/Hind font set, template-specific family/weight/style roles, consistent type sizes, contained text-safe boxes, and a minimum 24-unit component gutter. It also requires three clean double-ended connectors with one 3-unit shaft, a `6 7` dash rhythm, two compact tangent-aligned arrowheads, and no marker-only geometry. Georgia, Times, serif substitutes, detached arrows, text-safe-box overflow, and Illustrator-incompatible SVG constructs are rejected.
 
 ### `brand://ccc/one-pager-references`
 
@@ -139,7 +139,7 @@ Returns an SVG draft for one of:
 - `cta`
 - `lower_third`
 
-The SVG uses approved colors, editable installed CCC fonts, inline official logo geometry, and the actual cropped nested-C CCC mark from the selected reference. Social layouts are reference-locked: text is fitted into the original type slots without SVG `textLength` stretching. References 1, 2, 4, and 5 use Anton for their display slots; reference 3 preserves its Montserrat Bold headline system and real megaphone paths. It supports `styleVariant`:
+The SVG uses approved colors, editable installed CCC fonts, inline official logo geometry, and the actual cropped nested-C CCC mark from the selected reference. Social layouts are reference-locked: text is fitted into the original type slots without SVG `textLength`, `lengthAdjust`, `font-stretch`, or non-uniform scale transforms. References 1, 2, 4, and 5 use Anton for their display slots; reference 3 preserves its Montserrat Bold headline system and real megaphone paths. `create_social_svg` is the only supported social renderer; older local code calling `createLegacySocialSvg` is safely routed back through the same reference-locked path. It supports `styleVariant`:
 
 - `auto`
 - `navy_poster`
@@ -152,6 +152,8 @@ The SVG uses approved colors, editable installed CCC fonts, inline official logo
 Use `auto` unless you need a specific reference composition. `auto` routes quotes to `quote_post`, comparisons to `contrast_cards`, petition/policymaker/lawmaker/mandate asks to `petition_push`, statistics to `statistic_card`, policy alerts to `orange_alert`, and general posts to `navy_poster`.
 
 The reference mapping is fixed: `navy_poster` uses reference 1, `statistic_card` uses reference 2, `petition_push` and `orange_alert` use reference 3, `contrast_cards` uses reference 4, and `quote_post` uses the supplied reference-5 quote template. Quote posts preserve that SVG's exact 1080x1350 dimensions, `#15192E` background, visible `#22274E` cropped CCC watermark, logo geometry, Anton sizes, and 100/82/68px line rhythm. Copy stays in the left reference column while each portrait uses a verified person-specific bottom-right scale; portraits are contained in full with `xMaxYMax meet`, embedded as base64 `data:image` URIs, and paired with at least one Autumn Orange quote emphasis. Reference-locked outputs preserve variation 0 geometry; select another `styleVariant` for a genuinely different composition. `leadIn` supplies the two-line reference-3 prompt above the main headline, while `comparisonLeft` and `comparisonRight` supply the two positions in `contrast_cards`. For `template: "quote"`, provide `person` and place the quote in `headline`.
+
+For PNG previews, the rasterizer must explicitly load `assets/fonts/Anton-Regular.ttf`, the required Montserrat weights, and `assets/fonts/DMMono-Regular.ttf`. Do not use Quick Look or another system-fallback renderer as production output: a PNG is invalid if its headline silently falls back to a serif or generic system face. Keep the SVG as the Illustrator-editable master and validate it before rasterization.
 
 ### `create_quote_post`
 
@@ -304,15 +306,18 @@ This server treats the brand guide as a contract:
 - missing official logo assets are violations in `final` mode and warnings in `draft` mode; packaged SVG logos are used by default for generated SVGs
 - SVG logo placeholders are forbidden in `final` mode
 - generated SVGs must pass `validate_svg_artifact` before handoff
+- one-pager-sized or one-pager-labelled SVGs are automatically routed through `validate_one_pager_svg`; generic artifact validation cannot bypass the template gate
+- all social SVGs must declare `data-ccc-layout-lock="reference-exact"`; freeform and legacy-rendered social files are rejected
 - social dimensions outside `1080x1350` are warnings unless explicitly intended
 - final social graphics should use no more than five unique brand colors and no more than one tertiary accent color
 - social posts must follow the mapped reference system with its native display font, the actual cropped CCC mark silhouette, small label, footer URL, icons, and official logo
 - petition, policymaker, lawmaker, mandate, and direct advocacy asks should use `petition_push` or `orange_alert`, not a generic clean navy poster
 - social outputs should vary across `navy_poster`, `petition_push`, `orange_alert`, `statistic_card`, `contrast_cards`, and `quote_post` instead of repeatedly using the same clean navy layout
 - packaged SVG post references are available through `brand://ccc/post-references` and are the locked geometry for generated social posts
-- packaged one-pager SVG references are available through `brand://ccc/one-pager-references`; generated one-pagers must preserve one complete reference layout and may change only fitted copy plus contextual object illustrations
+- `create_one_pager` returns the required packaged SVG as a resource link; generated one-pagers must retain at least 90% of that exact template geometry and may change only fitted copy plus contextual object illustrations
 - quote posts must use reference 5 through `create_quote_post`, an approved packaged portrait, and the verified name/title from `brand://ccc/quote-people`
-- display copy must fit the native reference slots without `textLength` stretching; references 1, 2, 4, and 5 use Anton, while reference 3 uses Montserrat Bold
+- display copy must fit the native reference slots without `textLength`, `lengthAdjust`, `font-stretch`, or non-uniform scale transforms; references 1, 2, 4, and 5 use Anton, while reference 3 uses Montserrat Bold
+- raster previews must load the packaged CCC font files explicitly; silent serif or system-font fallback renders are invalid
 - large split-screen layouts are reserved for `contrast_cards`; full-height diagonal divider wedges and serif display headlines are violations
 - social copy that exceeds layout limits is a violation in `final` mode and a warning in `draft` mode
 - policy memo illustrations are forbidden by the guide

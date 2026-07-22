@@ -29,7 +29,7 @@ import {
 
 const server = new McpServer({
   name: "ccc-brand-mcp",
-  version: "0.7.2",
+  version: "0.7.4",
 });
 
 const sectionSchema = z
@@ -249,7 +249,7 @@ server.tool(
 
 server.tool(
   "create_one_pager",
-  "Create a strict CCC one-pager generation contract from one of the two packaged reference SVGs. Auto-selects the material/cost-chain or access/barriers composition, locks the full layout, and allows only fitted copy plus context-specific embedded object illustrations to change.",
+  "Start a strict CCC one-pager from one of the two packaged reference SVGs. Auto-selects the material/cost-chain or access/barriers composition and returns a direct resource link to the required source SVG. The linked SVG must be duplicated as the working file; freeform or recreated one-pager layouts are invalid. Only fitted copy plus context-specific embedded object illustrations may change.",
   {
     request: z.string().min(1).max(4000).describe("The policy topic, argument, audience, and evidence the one-pager must communicate."),
     template: z.enum(["auto", ...onePagerTemplateIds]).default("auto").describe("Use auto unless the request explicitly calls for the material/cost-chain or access/barriers composition."),
@@ -259,14 +259,27 @@ server.tool(
     sources: z.array(z.string().min(1).max(300)).max(12).default([]).describe("Named source citations for the locked footer source line. At least one is required in final mode."),
     mode: z.enum(["draft", "final"]).default("draft"),
   },
-  async (input) => ({
-    content: [{ type: "text", text: asText(createOnePagerBrief(input)) }],
-  }),
+  async (input) => {
+    const brief = createOnePagerBrief(input);
+    return {
+      content: [
+        { type: "text" as const, text: asText(brief) },
+        {
+          type: "resource_link" as const,
+          name: `${brief.template.id}-one-pager-source-svg`,
+          title: `Required CCC ${brief.template.label} source SVG`,
+          uri: brief.referenceResourceUri,
+          description: "Duplicate this exact SVG before changing copy or contextual illustrations. Final validation measures retained geometry against it.",
+          mimeType: "image/svg+xml",
+        },
+      ],
+    };
+  },
 );
 
 server.tool(
   "validate_one_pager_svg",
-  "Validate a completed CCC one-pager SVG against the locked reference canvas, the Anton/Montserrat/DM Mono/Hind brand font set, template-specific type roles, contained text-safe boxes, 24-unit gutters, and three clean double-ended Illustrator-safe connectors with standardized shaft/dash/arrowhead geometry.",
+  "Validate a completed CCC one-pager SVG against the exact selected source template. Measures retained path/panel/divider/brush/connector geometry, then enforces the locked canvas, Anton/Montserrat/DM Mono/Hind type roles, contained text-safe boxes, 24-unit gutters, and three clean double-ended Illustrator-safe connectors. Metadata alone cannot satisfy this validator.",
   {
     svg: z.string().min(1).max(12_000_000).describe("Full standalone one-pager SVG markup."),
     template: z.enum(onePagerTemplateIds).optional().describe("Expected locked one-pager template id."),
@@ -295,7 +308,7 @@ server.tool(
 
 server.tool(
   "create_social_svg",
-  "Generate an Illustrator-safe SVG 1.1 CCC artwork from the reference-locked social templates. Outputs use editable installed CCC fonts, inline vector logos, and xlink:href for embedded rasters. For template=quote, provide person and put the quote in headline; the generator uses reference 5 with a non-overlapping, uncropped, fully embedded approved portrait, verified attribution, and mandatory orange emphasis.",
+  "Generate an Illustrator-safe SVG 1.1 CCC artwork from the reference-locked social templates. This is the only supported social-post renderer: never recreate its SVG through a legacy or freeform generator. Outputs use editable packaged CCC fonts, native unscaled headline glyphs, inline vector logos, and xlink:href for embedded rasters. Any PNG preview must be rendered with the packaged files in assets/fonts; never accept a system-font fallback preview. For template=quote, provide person and put the quote in headline; the generator uses reference 5 with a non-overlapping, uncropped, fully embedded approved portrait, verified attribution, and mandatory orange emphasis.",
   {
     template: z.enum(["policy_alert", "statistic", "quote", "cta", "lower_third"]).default("policy_alert"),
     styleVariant: z.enum(["auto", "navy_poster", "petition_push", "orange_alert", "statistic_card", "contrast_cards", "quote_post"]).default("auto").describe("Optional CCC guide variant. auto maps quote posts to quote_post, petition/lawmaker asks to petition_push, policy alerts to orange_alert, statistics to statistic_card, and most other posts to navy_poster."),
