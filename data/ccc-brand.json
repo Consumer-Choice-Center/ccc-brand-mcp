@@ -372,6 +372,7 @@
         "aspectRatio": "1186.51:1535.49"
       },
       "referenceUsage": "The two packaged one-pager SVGs are strict production templates. Generated one-pagers must begin from one of them and preserve its canvas, section boundaries, coordinates, typography hierarchy, brush shapes, arrows, card geometry, background mark, footer, source line, and logo geometry.",
+      "minimumGeometryRetention": 0.9,
       "templates": [
         {
           "id": "material_cost_chain",
@@ -688,9 +689,12 @@
     "For petition, policymaker, lawmaker, mandate, and direct advocacy asks, default to petition_push or orange_alert rather than a generic navy poster.",
     "Vary social post layouts across navy poster, petition push, orange alert, statistic card, and compact contrast-card variants based on the message.",
     "Treat the packaged SVG post references as locked layout contracts: preserve coordinates, native display fonts, line rhythm, crop behavior, CCC mark geometry, icon paths, CTA placement, and logo usage while replacing the wording.",
-    "For one-pagers, start from one of the two packaged one-pager reference SVGs and preserve its entire page system; only replace fitted copy and the contextual central/supporting object illustrations.",
+    "For one-pagers, call create_one_pager, open its linked source SVG, duplicate that exact file, and preserve at least 90% of its measured vector geometry; only replace fitted copy and the contextual central/supporting object illustrations.",
+    "Never validate an 1186.51x1535.49 one-pager only as a generic SVG artifact; it must pass validate_one_pager_svg, including source-template geometry retention.",
     "One-pager contextual objects must be photorealistic transparent-background editorial cutouts or cutaways, embedded in the SVG, contained inside the original illustration zones, and kept clear of every text region.",
-    "Fit large social headlines into the native reference slots without SVG textLength stretching; references 1, 2, and 4 use Anton Regular, while reference 3 uses Montserrat Bold.",
+    "Generate every social post through create_social_svg and require data-ccc-layout-lock=reference-exact; legacy or freeform social renderers are forbidden.",
+    "Fit large social headlines into the native reference slots without SVG textLength, lengthAdjust, font-stretch, or non-uniform scale transforms; references 1, 2, 4, and 5 use Anton Regular, while reference 3 uses Montserrat Bold.",
+    "When rasterizing a social SVG, explicitly load the packaged files in assets/fonts and verify the rendered headline is Anton or Montserrat Bold as mapped; never deliver a PNG produced with a silent serif or system-font fallback.",
     "Do not use serif display headlines or full-height diagonal divider wedges; use a large split only for the reference-4 contrast_cards system.",
     "For social posts, default to 1080x1350 unless the user explicitly asks for another brand-supported size.",
     "For policy memos, do not add decorative visual elements.",

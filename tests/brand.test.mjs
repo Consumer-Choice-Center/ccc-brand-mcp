@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -9,6 +9,7 @@ import {
   createGenerationPrompt,
   createOnePagerBrief,
   createQuotePostSvg,
+  createLegacySocialSvg,
   createSocialSvg,
   getPostReferenceAssets,
   getOnePagerReferenceAssets,
@@ -24,6 +25,7 @@ import {
   validateIllustratorSvg,
   validateSvgArtifact,
   validateOnePagerSvg,
+  validateOnePagerTemplateIntegrity,
   validateLogoHref,
   validateSpec,
 } from "../dist/brand.js";
@@ -241,11 +243,39 @@ test("one-pager briefs select a locked composition and contextual object grammar
   assert.match(material.prompt, /at least 24 reference units/);
   assert.match(material.prompt, /data-ccc-text-safe-box/);
   assert.match(material.prompt, /stroke-dasharray="6 7"/);
+  assert.match(material.prompt, /Open and duplicate the linked reference SVG/);
+  assert.equal(material.referenceResourceUri, "brand://ccc/one-pager-references/ccc-tariffs-american-home.svg");
+  assert.equal(material.templateIntegrity.minimumGeometryRetention, 0.9);
+  assert.ok(material.templateIntegrity.referenceShapes > 100);
+  assert.match(material.templateIntegrity.requiredRootAttribute, /data-ccc-template-source/);
   assert.equal(createOnePagerBrief({ request: "A policy topic", mode: "final" }).ok, false);
 });
 
+function onePagerGeometryFixture(fileName) {
+  const source = readFileSync(join(process.cwd(), "assets", "one-pager-references", fileName), "utf8");
+  const geometryAttributes = {
+    path: ["d", "transform"],
+    rect: ["x", "y", "width", "height", "rx", "ry", "transform"],
+    line: ["x1", "y1", "x2", "y2", "transform"],
+    polyline: ["points", "transform"],
+    polygon: ["points", "transform"],
+    circle: ["cx", "cy", "r", "transform"],
+    ellipse: ["cx", "cy", "rx", "ry", "transform"],
+  };
+  return [...source.matchAll(/<(path|rect|line|polyline|polygon|circle|ellipse)\b([^>]*)>/gi)].map((match) => {
+    const type = match[1].toLowerCase();
+    const attrs = geometryAttributes[type].map((name) => {
+      const value = match[2].match(new RegExp(`\\b${name}\\s*=\\s*["']([^"']+)["']`, "i"))?.[1];
+      return value ? `${name}="${value}"` : "";
+    }).filter(Boolean).join(" ");
+    return attrs ? `<${type} ${attrs}/>` : "";
+  }).join("");
+}
+
 test("one-pager SVG validation enforces the locked canvas, regions, and embedded object", () => {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 1186.51 1535.49" data-ccc-export="illustrator-svg-1.1" data-ccc-font-policy="editable-installed" data-ccc-asset="one-pager" data-ccc-layout-lock="one-pager-reference-exact" data-ccc-one-pager-template="material_cost_chain" data-ccc-typography-contract="material_cost_chain-reference" data-ccc-component-grid="reference-spaced">
+  const referenceGeometry = onePagerGeometryFixture("ccc-tariffs-american-home.svg");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 1186.51 1535.49" data-ccc-export="illustrator-svg-1.1" data-ccc-font-policy="editable-installed" data-ccc-asset="one-pager" data-ccc-layout-lock="one-pager-reference-exact" data-ccc-one-pager-template="material_cost_chain" data-ccc-template-source="one-pager-references/ccc-tariffs-american-home.svg" data-ccc-typography-contract="material_cost_chain-reference" data-ccc-component-grid="reference-spaced">
+    ${referenceGeometry}
     <rect width="1186.51" height="1000" fill="#15192E"/><rect y="1000" width="1186.51" height="535.49" fill="#FFF7EF"/><path fill="#E95C1F" d="M0 0h20v20H0z"/>
     <g data-ccc-role="one-pager-title" data-ccc-component="title" data-ccc-bounds="20 20 180 180" data-ccc-text-inset="10 10 10 10" data-ccc-text-safe-box="30 30 160 160">
       <text data-ccc-type-role="page-kicker" font-family="DM Mono" font-size="15" font-weight="400" fill="#FFFFFF">LABEL</text>
@@ -286,8 +316,12 @@ test("one-pager SVG validation enforces the locked canvas, regions, and embedded
   const unsafeText = validateOnePagerSvg({ svg: svg.replace('data-ccc-text-safe-box="30 30 160 160"', 'data-ccc-text-safe-box="10 10 250 250"'), mode: "final" });
   const dirtyArrow = validateOnePagerSvg({ svg: svg.replace('stroke-dasharray="6 7"', 'stroke-dasharray="8 8"'), mode: "final" });
   const markerArrow = validateOnePagerSvg({ svg: svg.replace('stroke="#FFF7EF" stroke-width="3"', 'stroke="#FFF7EF" stroke-width="3" marker-end="url(#arrow)"'), mode: "final" });
+  const metadataOnlyRecreation = validateOnePagerSvg({ svg: svg.replace(referenceGeometry, ""), template: "material_cost_chain", mode: "final" });
 
   assert.equal(valid.ok, true);
+  assert.equal(valid.templateIntegrity.ok, true);
+  assert.equal(valid.templateIntegrity.retainedRatio, 1);
+  assert.equal(validateOnePagerTemplateIntegrity({ svg, template: "material_cost_chain" }).ok, true);
   assert.equal(valid.hasEmbeddedImages, true);
   assert.equal(invalid.ok, false);
   assert.match(invalid.violations.join("\n"), /viewBox must remain exactly/);
@@ -299,6 +333,25 @@ test("one-pager SVG validation enforces the locked canvas, regions, and embedded
   assert.match(unsafeText.violations.join("\n"), /text-safe boxes outside components: title/);
   assert.match(dirtyArrow.violations.join("\n"), /clean Illustrator-safe connector groups/);
   assert.match(markerArrow.violations.join("\n"), /must not rely on SVG markers/);
+  assert.equal(metadataOnlyRecreation.ok, false);
+  assert.match(metadataOnlyRecreation.violations.join("\n"), /does not retain enough geometry/);
+});
+
+test("generic artifact validation cannot bypass the dedicated one-pager gate", () => {
+  const generic = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 1186.51 1535.49" width="1186.51" height="1535.49" data-ccc-export="illustrator-svg-1.1" data-ccc-font-policy="editable-installed" data-ccc-asset="one-page-explainer">
+    <rect width="1186.51" height="1535.49" fill="#FFF7EF"/>
+    <rect width="1186.51" height="35" fill="#E95C1F"/>
+    <rect y="1362" width="1186.51" height="173.49" fill="#22264E"/>
+    <g data-ccc-logo-href="logos/ccc-wide-orange.svg"/>
+    <text x="80" y="250" font-family="Montserrat" font-weight="700" font-size="76" fill="#22264E">GENERIC EXPLAINER</text>
+  </svg>`;
+  const result = validateSvgArtifact({ svg: generic, assetType: "other", mode: "final", assetBasePath: join(process.cwd(), "assets") });
+
+  assert.equal(result.appearsToBeOnePager, true);
+  assert.equal(result.onePagerValidation.ok, false);
+  assert.equal(result.ok, false);
+  assert.match(result.violations.join("\n"), /One-pager gate/);
+  assert.match(result.violations.join("\n"), /reference layout lock|selected reference SVG geometry/);
 });
 
 test("Illustrator SVG validation rejects browser-only links, embedded web fonts, and live filters", () => {
@@ -395,6 +448,66 @@ test("generated SVG artifacts reject old split-panel serif style", () => {
   assert.match(result.violations.join("\n"), /Georgia/);
   assert.match(result.violations.join("\n"), /large full-height diagonal split composition/);
   assert.match(result.violations.join("\n"), /gradient CCC mark geometry/);
+});
+
+test("social validation rejects freeform layouts and forced-width glyph scaling", () => {
+  const packagedAssets = join(process.cwd(), "assets");
+  const valid = createSocialSvg({
+    template: "cta",
+    styleVariant: "navy_poster",
+    headline: "BETTER RULES. MORE CHOICE.",
+    kicker: "SMART REGULATION",
+    body: "Protect consumers from harm — without taking their choices away.",
+    cta: "CHOOSE BETTER RULES.",
+    includeLogoPlaceholder: false,
+    assetBasePath: packagedAssets,
+    mode: "final",
+  });
+  const freeform = valid.svg.replace(' data-ccc-layout-lock="reference-exact"', "");
+  const stretched = valid.svg.replace(
+    /(<g[^>]*data-ccc-role="reference-headline"[^>]*>\s*<text\b)/i,
+    '$1 textLength="900" lengthAdjust="spacingAndGlyphs"',
+  );
+  const wrongHeadlineFace = valid.svg.replace(
+    /(<g[^>]*data-ccc-role="reference-headline"[^>]*>[\s\S]*?<text[^>]*font-family=")Anton("[^>]*>)/i,
+    "$1Montserrat$2",
+  );
+
+  const freeformResult = validateSvgArtifact({ svg: freeform, assetType: "social", mode: "final", assetBasePath: packagedAssets });
+  const stretchedResult = validateSvgArtifact({ svg: stretched, assetType: "social", mode: "final", assetBasePath: packagedAssets });
+  const wrongFaceResult = validateSvgArtifact({ svg: wrongHeadlineFace, assetType: "social", mode: "final", assetBasePath: packagedAssets });
+
+  assert.equal(valid.validation.ok, true);
+  assert.doesNotMatch(valid.svg, /textLength|lengthAdjust|font-stretch/i);
+  assert.equal(freeformResult.ok, false);
+  assert.match(freeformResult.violations.join("\n"), /reference-exact/);
+  assert.equal(stretchedResult.ok, false);
+  assert.match(stretchedResult.violations.join("\n"), /textLength stretching/);
+  assert.equal(wrongFaceResult.ok, false);
+  assert.match(wrongFaceResult.violations.join("\n"), /native Anton Regular/);
+});
+
+test("legacy social entrypoint is a safe alias for the reference-locked renderer", () => {
+  const input = {
+    template: "cta",
+    styleVariant: "navy_poster",
+    variation: 1,
+    kicker: "SMART REGULATION",
+    headline: "BETTER RULES. MORE CHOICE.",
+    body: "Protect consumers from harm — without taking their choices away.",
+    cta: "CHOOSE BETTER RULES.",
+    includeLogoPlaceholder: false,
+    assetBasePath: join(process.cwd(), "assets"),
+    mode: "final",
+  };
+  const legacy = createLegacySocialSvg(input);
+  const current = createSocialSvg(input);
+
+  assert.equal(legacy.svg, current.svg);
+  assert.equal(legacy.validation.ok, true);
+  assert.equal(legacy.layoutLock, "reference-exact");
+  assert.equal(legacy.variation, 0);
+  assert.doesNotMatch(legacy.svg, /textLength|lengthAdjust|font-stretch/i);
 });
 
 test("final SVG generation embeds a verified logo asset reference", () => {

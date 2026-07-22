@@ -373,6 +373,11 @@ function svgTextStyles(svg: string) {
   });
 }
 
+function referenceHeadlineStyles(svg: string) {
+  const block = svg.match(/<g\b[^>]*data-ccc-role=["']reference-headline["'][^>]*>[\s\S]*?<\/g>/i)?.[0] ?? "";
+  return svgTextStyles(block);
+}
+
 function hasBadSplit(svg: string, width: number, height: number) {
   return [...svg.matchAll(/<polygon\b[^>]*\bpoints\s*=\s*["']([^"']+)["'][^>]*>/gi)].some((match) => {
     const nums = match[1].split(/[\s,]+/).map(Number).filter(Number.isFinite);
@@ -406,6 +411,11 @@ export function validateSvgArtifact(input: { svg: string; assetType?: "social" |
   warnings.push(...colorHarmony.warnings);
   const widthPx = svgDimension(input.svg, "width");
   const heightPx = svgDimension(input.svg, "height");
+  const appearsToBeOnePager = assetType === "other" && (
+    /data-ccc-asset=["'](?:one-pager|one-page-explainer)["']/i.test(input.svg)
+    || /viewBox=["']0 0 1186\.51 1535\.49["']/i.test(input.svg)
+    || (widthPx === onePagerConfig.canvas.widthPx && heightPx === onePagerConfig.canvas.heightPx)
+  );
   const guideStyleWatermark = (referenceExact && /data-ccc-watermark-source=["']packaged-reference["']/i.test(input.svg)) || (/data-ccc-watermark=["']gradient-ccc-mark["']/i.test(input.svg) && /data-ccc-watermark-gradient=["']semi-transparent["']/i.test(input.svg) && /href=["']#ccc-watermark-mark["']/i.test(input.svg));
   const legacyCircleWatermark = /data-ccc-watermark=["']gradient-ring["']|CCC gradient ring watermark/i.test(input.svg);
   const styleVariant = input.svg.match(/data-ccc-variant=["'](navy_poster|petition_push|orange_alert|statistic_card|contrast_cards|quote_post)["']/i)?.[1];
@@ -451,12 +461,24 @@ export function validateSvgArtifact(input: { svg: string; assetType?: "social" |
     : styleVariant === "contrast_cards"
     ? antonStyles.filter((style) => style.size >= 96 && (style.textLength ?? 0) >= 340).length >= 2
     : antonStyles.some((style) => style.size >= 110 && (style.textLength ?? 0) >= (widthPx ?? brand.social.canonicalSize.widthPx) * 0.58));
-  const artificialTextStretch = referenceExact && /\btextLength\s*=/i.test(input.svg);
+  const headlineStyles = referenceHeadlineStyles(input.svg);
+  const expectedDisplayFamily = referenceSystem === "reference-3" ? "Montserrat" : "Anton";
+  const nativeReferenceTypography = !referenceExact || (headlineStyles.length > 0 && headlineStyles.every((style) =>
+    style.family === expectedDisplayFamily && (expectedDisplayFamily !== "Montserrat" || style.weight >= 700)
+  ));
+  const artificialTextStretch = assetType === "social" && (
+    /\btextLength\s*=/i.test(input.svg)
+    || /\blengthAdjust\s*=\s*["']spacingAndGlyphs["']/i.test(input.svg)
+    || /\bfont-stretch\s*(?:=|:)\s*["']?(?:condensed|expanded|[0-9.]+%)/i.test(input.svg)
+    || /<text\b[^>]*\btransform\s*=\s*["'][^"']*\bscale\s*\(\s*([0-9.]+)[ ,]+(?!\1\b)[0-9.]+/i.test(input.svg)
+  );
   const weakLargeSocialType = assetType === "social" && styles.some((style) => style.family === "Montserrat" && style.size >= 72 && style.weight < 700);
   const badSocialSplitComposition = assetType === "social" && styleVariant !== "contrast_cards" && hasBadSplit(input.svg, widthPx ?? brand.social.canonicalSize.widthPx, heightPx ?? brand.social.canonicalSize.heightPx);
+  const onePagerValidation = appearsToBeOnePager ? validateOnePagerSvg({ svg: input.svg, mode }) : undefined;
   if (assetType === "social") {
     const expected = brand.social.canonicalSize;
     if (widthPx !== expected.widthPx || heightPx !== expected.heightPx) severityPush(mode, violations, warnings, `SVG social dimensions are ${widthPx ?? "missing"}x${heightPx ?? "missing"}; CCC social output must be ${expected.widthPx}x${expected.heightPx}.`);
+    if (!referenceExact) severityPush(mode, violations, warnings, "Final CCC social output must be generated from the mapped packaged reference and declare data-ccc-layout-lock=\"reference-exact\". Freeform and legacy social renderers are not accepted.");
     if (!guideStyleVariant) severityPush(mode, violations, warnings, "SVG social output must declare a CCC guide style variant: navy_poster, petition_push, orange_alert, statistic_card, contrast_cards, or quote_post.");
     if (!validDensity) severityPush(mode, violations, warnings, "SVG social output must declare CCC composition density metadata: medium, dense, or high.");
     if (!guideStyleWatermark) severityPush(mode, violations, warnings, "SVG social output must use the cropped semi-transparent gradient CCC mark geometry from the reference system; concentric-circle substitutes are not accepted.");
@@ -478,12 +500,17 @@ export function validateSvgArtifact(input: { svg: string; assetType?: "social" |
     if (badSocialSplitComposition) severityPush(mode, violations, warnings, "SVG uses a large full-height diagonal split composition; CCC social posts must follow the mapped reference system with a dominant field, stacked text blocks, labels, footer, logo, and cropped CCC mark watermark.");
     if (!posterScaleHeadline) severityPush(mode, violations, warnings, "SVG social output must use the mapped reference's native display face at poster scale: Anton for references 1, 2, and 4; Montserrat Bold for reference 3.");
     if (!frameFillingAnton) severityPush(mode, violations, warnings, "Dominant display typography must occupy the reference headline slots and preserve the supplied CCC composition geometry.");
+    if (!nativeReferenceTypography) severityPush(mode, violations, warnings, `Reference-locked headline text must use the native ${expectedDisplayFamily}${expectedDisplayFamily === "Montserrat" ? " Bold" : " Regular"} display face on every line.`);
     if (artificialTextStretch) severityPush(mode, violations, warnings, "Reference-locked layouts must not use SVG textLength stretching because it creates viewer-dependent letter spacing. Fit copy with the reference font sizes and line slots instead.");
     if (weakLargeSocialType) severityPush(mode, violations, warnings, "Large social headline text must not use thin or regular Montserrat. Use Anton Regular or Montserrat Bold blocks for guide-style posts.");
   }
   if (placeholderLogo) severityPush(mode, violations, warnings, "SVG contains a logo placeholder. Final CCC output must use an approved official logo asset.");
+  if (onePagerValidation && !onePagerValidation.ok) {
+    for (const message of onePagerValidation.violations) if (!violations.includes(message)) violations.push(`One-pager gate: ${message}`);
+    for (const message of onePagerValidation.warnings) if (!warnings.includes(message)) warnings.push(`One-pager gate: ${message}`);
+  }
   if (input.requiresLogo ?? true) if (!logoChecks.some((check) => check.ok)) severityPush(mode, violations, warnings, "SVG does not reference a verified official CCC logo asset.");
-  return { ok: violations.length === 0, mode, violations, warnings, widthPx, heightPx, fonts, colors, colorHarmony, illustratorCompatibility, placeholderLogo, logoRefs, logoChecks, referenceExact, guideStyleWatermark, legacyCircleWatermark, guideStyleVariant, styleVariant, referenceSystem, variation, density, validDensity, hasActionBand, hasStackedBlocks, hasPetitionMarker, hasLargeStat, hasContrastCards, hasQuotePortrait, hasQuoteAttribution, hasQuoteWatermark, hasQuoteReferencePalette, hasSeparatedQuoteZones, hasProportionalQuotePortrait, hasUncroppedQuotePortrait, hasEmbeddedQuotePortrait, hasQuoteOrangeEmphasis, badSocialSplitComposition, posterScaleHeadline, frameFillingAnton, artificialTextStretch, weakLargeSocialType };
+  return { ok: violations.length === 0, mode, violations, warnings, widthPx, heightPx, fonts, colors, colorHarmony, illustratorCompatibility, placeholderLogo, logoRefs, logoChecks, referenceExact, guideStyleWatermark, legacyCircleWatermark, guideStyleVariant, styleVariant, referenceSystem, variation, density, validDensity, hasActionBand, hasStackedBlocks, hasPetitionMarker, hasLargeStat, hasContrastCards, hasQuotePortrait, hasQuoteAttribution, hasQuoteWatermark, hasQuoteReferencePalette, hasSeparatedQuoteZones, hasProportionalQuotePortrait, hasUncroppedQuotePortrait, hasEmbeddedQuotePortrait, hasQuoteOrangeEmphasis, badSocialSplitComposition, posterScaleHeadline, frameFillingAnton, nativeReferenceTypography, artificialTextStretch, weakLargeSocialType, appearsToBeOnePager, onePagerValidation };
 }
 
 function illustratorFontPolicy(includeAnton = true) {
@@ -551,6 +578,66 @@ export function selectOnePagerTemplate(request: string, requested: OnePagerTempl
   return onePagerTemplates.find((template) => template.id === id)!;
 }
 
+const onePagerGeometryAttributes: Record<string, string[]> = {
+  path: ["d", "transform"],
+  rect: ["x", "y", "width", "height", "rx", "ry", "transform"],
+  line: ["x1", "y1", "x2", "y2", "transform"],
+  polyline: ["points", "transform"],
+  polygon: ["points", "transform"],
+  circle: ["cx", "cy", "r", "transform"],
+  ellipse: ["cx", "cy", "rx", "ry", "transform"],
+};
+
+function onePagerGeometryCounts(svg: string) {
+  const counts = new Map<string, number>();
+  for (const match of svg.matchAll(/<(path|rect|line|polyline|polygon|circle|ellipse)\b([^>]*)>/gi)) {
+    const type = match[1].toLowerCase();
+    const values = onePagerGeometryAttributes[type]
+      .map((name) => {
+        const value = attr(match[2], name)?.trim().replace(/\s+/g, " ");
+        return value ? `${name}=${value}` : "";
+      })
+      .filter(Boolean);
+    if (!values.length) continue;
+    const signature = `${type}|${values.join("|")}`;
+    counts.set(signature, (counts.get(signature) ?? 0) + 1);
+  }
+  return counts;
+}
+
+export function validateOnePagerTemplateIntegrity(input: { svg: string; template: OnePagerTemplateId; assetBasePath?: string }) {
+  const template = onePagerTemplates.find((entry) => entry.id === input.template)!;
+  const referencePath = resolve(getAssetBase(input.assetBasePath), template.referenceAsset);
+  const minimumRetention = Number(onePagerConfig.minimumGeometryRetention ?? 0.9);
+  const declaredSource = input.svg.match(/data-ccc-template-source=["']([^"']+)["']/i)?.[1];
+  if (!existsSync(referencePath)) {
+    return { ok: false, templateId: template.id, referenceAsset: template.referenceAsset, declaredSource, sourceMatches: false, minimumRetention, referenceShapes: 0, matchedShapes: 0, retainedRatio: 0, message: `Selected one-pager reference is missing: ${template.referenceAsset}.` };
+  }
+  const referenceCounts = onePagerGeometryCounts(readFileSync(referencePath, "utf8"));
+  const outputCounts = onePagerGeometryCounts(input.svg);
+  let referenceShapes = 0;
+  let matchedShapes = 0;
+  for (const [signature, count] of referenceCounts) {
+    referenceShapes += count;
+    matchedShapes += Math.min(count, outputCounts.get(signature) ?? 0);
+  }
+  const retainedRatio = referenceShapes ? matchedShapes / referenceShapes : 0;
+  const sourceMatches = declaredSource === template.referenceAsset;
+  const ok = sourceMatches && retainedRatio >= minimumRetention;
+  return {
+    ok,
+    templateId: template.id,
+    referenceAsset: template.referenceAsset,
+    declaredSource,
+    sourceMatches,
+    minimumRetention,
+    referenceShapes,
+    matchedShapes,
+    retainedRatio: Math.round(retainedRatio * 10_000) / 10_000,
+    message: ok ? undefined : `One-pager does not retain enough geometry from ${template.referenceAsset}: ${Math.round(retainedRatio * 100)}% retained; at least ${Math.round(minimumRetention * 100)}% is required. Start from the linked SVG itself instead of recreating the page.`,
+  };
+}
+
 export function createOnePagerBrief(input: {
   request: string;
   template?: OnePagerTemplateSelection;
@@ -563,6 +650,9 @@ export function createOnePagerBrief(input: {
   const mode = input.mode ?? "draft";
   const template = selectOnePagerTemplate(input.request, input.template ?? "auto");
   const typographyContract = onePagerConfig.typographyContracts[template.id];
+  const referenceResourceUri = `brand://ccc/one-pager-references/${template.referenceAsset.split("/").pop()}`;
+  const referencePath = resolve(getAssetBase(), template.referenceAsset);
+  const referenceShapes = existsSync(referencePath) ? [...onePagerGeometryCounts(readFileSync(referencePath, "utf8")).values()].reduce((sum, count) => sum + count, 0) : 0;
   const centralObject = input.centralObject?.trim() || "the single physical object that best explains the policy issue";
   const sources = (input.sources ?? []).map((source) => source.trim()).filter(Boolean);
   const warnings: string[] = [];
@@ -573,7 +663,8 @@ export function createOnePagerBrief(input: {
   const prompt = [
     `Create one CCC policy one-pager using the strict ${template.id} reference template.`,
     `User request: ${input.request}`,
-    `Reference SVG: brand://ccc/one-pager-references/${template.referenceAsset.split("/").pop()}`,
+    `Reference SVG: ${referenceResourceUri}`,
+    "Open and duplicate the linked reference SVG before writing or drawing anything. The reference resource is a required source file, not optional inspiration.",
     `Canvas: ${onePagerConfig.canvas.viewBox} (${onePagerConfig.canvas.widthPx} x ${onePagerConfig.canvas.heightPx} reference units).`,
     "Start from the supplied SVG itself. Do not recreate, reinterpret, simplify, stretch, or rearrange the page.",
     `Preserve the template's ${template.titleStyle}, navy/orange/warm-white color roles, section heights, headline origin, brush labels, arrows, dividers, cards, footer, source line, and logo geometry exactly.`,
@@ -592,12 +683,20 @@ export function createOnePagerBrief(input: {
     `Headline: ${input.headline?.trim() || "write from the request"}`,
     `Closing takeaway: ${input.keyMessage?.trim() || "write from the request"}`,
     `Sources: ${sources.length ? sources.join(" • ") : "required before final output"}`,
-    `Add data-ccc-asset="one-pager", data-ccc-layout-lock="one-pager-reference-exact", data-ccc-typography-contract="${template.id}-reference", data-ccc-component-grid="reference-spaced", the selected template id, and data-ccc-role markers for title, central illustration, callouts, lead statistic, evidence cards, takeaway, sources, and logo. Add data-ccc-type-role plus direct font-family, font-weight, font-style, and font-size attributes to every required typography role; do not rely on inherited or class-only font declarations. Run validate_one_pager_svg and validate_illustrator_svg; fix every violation before handoff.`,
+    `Add data-ccc-asset="one-pager", data-ccc-layout-lock="one-pager-reference-exact", data-ccc-template-source="${template.referenceAsset}", data-ccc-typography-contract="${template.id}-reference", data-ccc-component-grid="reference-spaced", the selected template id, and data-ccc-role markers for title, central illustration, callouts, lead statistic, evidence cards, takeaway, sources, and logo. Add data-ccc-type-role plus direct font-family, font-weight, font-style, and font-size attributes to every required typography role; do not rely on inherited or class-only font declarations. Run validate_one_pager_svg and validate_illustrator_svg; fix every violation before handoff. Generic validate_svg_artifact is not a substitute for the dedicated one-pager validator.`,
   ].join("\n");
   return {
     ok: violations.length === 0,
     mode,
     template,
+    referenceAsset: template.referenceAsset,
+    referenceResourceUri,
+    templateIntegrity: {
+      required: true,
+      referenceShapes,
+      minimumGeometryRetention: Number(onePagerConfig.minimumGeometryRetention ?? 0.9),
+      requiredRootAttribute: `data-ccc-template-source="${template.referenceAsset}"`,
+    },
     canvas: onePagerConfig.canvas,
     lockedElements: onePagerConfig.lockedElements,
     mutableElements: onePagerConfig.mutableElements,
@@ -627,6 +726,8 @@ export function validateOnePagerSvg(input: { svg: string; template?: OnePagerTem
   const missingRoles = requiredRoles.filter((role) => !new RegExp(`data-ccc-role=["']${role}["']`, "i").test(input.svg));
   const hasPaletteAnchors = /#15192e/i.test(input.svg) && /#fff7(?:ef|f0)/i.test(input.svg) && /#e(?:95c1f|95d20|b5c20)/i.test(input.svg);
   const locked = /data-ccc-asset=["']one-pager["']/i.test(input.svg) && /data-ccc-layout-lock=["']one-pager-reference-exact["']/i.test(input.svg);
+  const integrityTemplateId = templateId ?? input.template;
+  const templateIntegrity = integrityTemplateId ? validateOnePagerTemplateIntegrity({ svg: input.svg, template: integrityTemplateId }) : undefined;
   const illustratorCompatibility = validateIllustratorSvg({ svg: input.svg, mode });
   const typographyContract = input.svg.match(/data-ccc-typography-contract=["']([^"']+)["']/i)?.[1];
   const componentGrid = /data-ccc-component-grid=["']reference-spaced["']/i.test(input.svg);
@@ -694,6 +795,7 @@ export function validateOnePagerSvg(input: { svg: string; template?: OnePagerTem
   if (viewBox !== onePagerConfig.canvas.viewBox) severityPush(mode, violations, warnings, `One-pager viewBox must remain exactly ${onePagerConfig.canvas.viewBox}; received ${viewBox || "missing"}.`);
   if (!templateId || (input.template && templateId !== input.template)) severityPush(mode, violations, warnings, "One-pager must declare the selected material_cost_chain or access_barriers template id.");
   if (!locked) severityPush(mode, violations, warnings, "One-pager must declare the strict one-pager reference layout lock.");
+  if (!templateIntegrity?.ok) severityPush(mode, violations, warnings, templateIntegrity?.message ?? "One-pager must preserve the selected reference SVG geometry and declare its exact data-ccc-template-source.");
   if (typographyContract !== `${templateId}-reference`) severityPush(mode, violations, warnings, "One-pager must declare and follow the selected template-specific typography contract.");
   if (missingTypeRoles.length || inconsistentTypeRoles.length) severityPush(mode, violations, warnings, `One-pager typography roles must declare and use the reference font, weight, style, and one consistent size per repeated component${missingTypeRoles.length ? `; missing roles: ${missingTypeRoles.join(", ")}` : ""}${inconsistentTypeRoles.length ? `; inconsistent roles: ${inconsistentTypeRoles.join(", ")}` : ""}.`);
   if (!componentGrid || componentTags.length < 8 || malformedComponents.length || unsafeTextComponents.length) severityPush(mode, violations, warnings, `One-pager components must use the reference-spaced grid with explicit bounds, text insets, and contained text-safe boxes${malformedComponents.length ? `; malformed components: ${malformedComponents.join(", ")}` : ""}${unsafeTextComponents.length ? `; text-safe boxes outside components: ${unsafeTextComponents.join(", ")}` : ""}.`);
@@ -706,7 +808,7 @@ export function validateOnePagerSvg(input: { svg: string; template?: OnePagerTem
   if (!hasEmbeddedImages) severityPush(mode, violations, warnings, "All contextual one-pager illustrations must be embedded base64 data:image assets; external or missing images are not accepted.");
   violations.push(...illustratorCompatibility.violations);
   warnings.push(...illustratorCompatibility.warnings);
-  return { ok: violations.length === 0, mode, violations, warnings, templateId, viewBox, colors, fontFamilies, images: images.length, hasEmbeddedImages, hasPaletteAnchors, locked, missingRoles, illustratorCompatibility, typographyContract, missingTypeRoles, inconsistentTypeRoles, componentGrid, components: componentTags.length, malformedComponents, unsafeTextComponents, crowdedComponents: [...new Set(crowdedComponents)], connectors: connectorBlocks.length, badConnectors: badConnectors.length };
+  return { ok: violations.length === 0, mode, violations, warnings, templateId, viewBox, colors, fontFamilies, images: images.length, hasEmbeddedImages, hasPaletteAnchors, locked, templateIntegrity, missingRoles, illustratorCompatibility, typographyContract, missingTypeRoles, inconsistentTypeRoles, componentGrid, components: componentTags.length, malformedComponents, unsafeTextComponents, crowdedComponents: [...new Set(crowdedComponents)], connectors: connectorBlocks.length, badConnectors: badConnectors.length };
 }
 
 export function createGenerationPrompt(input: { request: string; outputType: "social_post" | "one_pager" | "video_graphic" | "policy_document" | "website_section" | "ad" | "general"; includeNegativePrompt: boolean }) {
@@ -802,8 +904,8 @@ function wrapDisplayWords(text: string, maxLines: number, maxUnits: number, minL
   return lines.slice(0, maxLines);
 }
 
-function antonLine(text: string, x: number, y: number, width: number, size: number, fill: string, role = "display-line") {
-  return `<text data-ccc-role="${role}" x="${Math.round(x)}" y="${Math.round(y)}" font-family="Anton" font-weight="400" font-size="${Math.round(size)}" textLength="${Math.round(width)}" lengthAdjust="spacingAndGlyphs" fill="${fill}">${escapeXml(text.toUpperCase())}</text>`;
+function antonLine(text: string, x: number, y: number, _width: number, size: number, fill: string, role = "display-line") {
+  return `<text data-ccc-role="${role}" x="${Math.round(x)}" y="${Math.round(y)}" font-family="Anton" font-weight="400" font-size="${Math.round(size)}" fill="${fill}">${escapeXml(text.toUpperCase())}</text>`;
 }
 
 function referenceForVariant(variant: Exclude<SocialStyleVariant, "auto">) {
@@ -1140,7 +1242,7 @@ function referenceLockedSocialSvg(input: SocialSvgInput) {
   return { validation, layout, artifactValidation, selectedLogoHref, styleVariant, variation: 0, referenceSystem, layoutLock: "reference-exact", svg };
 }
 
-export function createLegacySocialSvg(input: SocialSvgInput) {
+function createLegacySocialRenderer(input: SocialSvgInput) {
   const isLowerThird = input.template === "lower_third";
   const width = isLowerThird ? brand.visualSystem.videoGraphics.horizontalSize.widthPx : brand.social.canonicalSize.widthPx;
   const height = isLowerThird ? brand.visualSystem.videoGraphics.horizontalSize.heightPx : brand.social.canonicalSize.heightPx;
@@ -1337,5 +1439,14 @@ export function createLegacySocialSvg(input: SocialSvgInput) {
 }
 
 export function createSocialSvg(input: SocialSvgInput) {
-  return input.template === "lower_third" ? createLegacySocialSvg(input) : referenceLockedSocialSvg(input);
+  return input.template === "lower_third" ? createLegacySocialRenderer(input) : referenceLockedSocialSvg(input);
+}
+
+/**
+ * Backward-compatible entrypoint for older local scripts. Social posts are
+ * deliberately routed through the same reference-locked renderer exposed by
+ * the MCP so legacy callers cannot reintroduce forced-width display text.
+ */
+export function createLegacySocialSvg(input: SocialSvgInput) {
+  return createSocialSvg(input);
 }
