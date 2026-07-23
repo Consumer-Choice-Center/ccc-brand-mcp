@@ -20,7 +20,7 @@ test("one-pager MCP workflow materializes locally without returning large SVG te
     const result = await client.callTool({
       name: "create_one_pager",
       arguments: {
-        request: "Show how tariffs on auto parts raise vehicle repair costs.",
+        request: "Show how goverment tariffs on auto parts raise vehcile repair costs.",
         template: "material_cost_chain",
         outputFileName,
         mode: "draft",
@@ -39,6 +39,11 @@ test("one-pager MCP workflow materializes locally without returning large SVG te
     assert.match(svg, /<\/svg>\s*$/);
     assert.doesNotMatch(result.content[0].text, /<svg\b/);
     assert.match(payload.prompt, /validate_one_pager_file/);
+    assert.equal(payload.spelling.hasCorrections, true);
+    assert.match(payload.spelling.userNotice, /“goverment” → “government”/);
+    assert.match(payload.spelling.userNotice, /“vehcile” → “vehicle”/);
+    assert.match(payload.prompt, /government tariffs on auto parts raise vehicle repair costs/i);
+    assert.doesNotMatch(payload.prompt, /\bgoverment\b|\bvehcile\b/i);
 
     const validation = await client.callTool({
       name: "validate_one_pager_file",
@@ -56,6 +61,25 @@ test("one-pager MCP workflow materializes locally without returning large SVG te
     assert.equal(validationPayload.file.sha256, payload.workingFile.sha256);
     assert.equal(validationPayload.ok, true);
     assert.equal(validationPayload.warnings.length > 0, true);
+
+    const social = await client.callTool({
+      name: "create_social_svg",
+      arguments: {
+        template: "cta",
+        styleVariant: "navy_poster",
+        headline: "BETTER CHOIEC FOR CONSUEMRS",
+        body: "The goverment should recieve feedback.",
+        mode: "draft",
+      },
+    });
+    const socialPayload = JSON.parse(social.content[0].text);
+    assert.equal(socialPayload.spelling.hasCorrections, true);
+    assert.match(socialPayload.spelling.highlightedCorrections.join("\n"), /~~CHOIEC~~ → \*\*CHOICE\*\*/);
+    assert.equal(socialPayload.spelling.correctedFields.headline, "BETTER CHOICE FOR CONSUMERS");
+    assert.equal(socialPayload.spelling.correctedFields.body, "The government should receive feedback.");
+    assert.match(socialPayload.svg, /CHOICE/);
+    assert.match(socialPayload.svg, /CONSUMERS/);
+    assert.doesNotMatch(socialPayload.svg, /CHOIEC|CONSUEMRS|goverment|recieve/i);
 
     const metadata = await client.readResource({ uri: "brand://ccc/one-pager-working-templates" });
     assert.equal(metadata.contents.length, 1);

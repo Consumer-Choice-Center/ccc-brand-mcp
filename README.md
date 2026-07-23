@@ -9,6 +9,7 @@ It exposes the CCC 2026 brand guide as machine-readable resources and tools so a
 - create strict brand-locked prompts for image/design models
 - generate simple on-brand SVG drafts for social cards and video lower thirds
 - generate strict reference contracts for CCC policy one-pagers with contextual object illustrations
+- detect spelling errors in generation copy, show the corrections to the user, and render only corrected text
 
 ## Brand Source
 
@@ -98,6 +99,15 @@ Example:
 Creates a strict prompt for another LLM, image model, or design agent.
 
 Use `outputType: "one_pager"` to include the locked one-pager reference rules automatically.
+
+Every generation and copy-layout tool runs deterministic spelling review before selecting a template, fitting copy, or rendering an SVG. Standard American and British English spellings are accepted. When a likely typo is found, the tool response includes:
+
+- a visible `userNotice`
+- Markdown-style `highlightedCorrections`, such as `~~tamplate~~ → **template**`
+- the original and corrected field values
+- exact replacement metadata
+
+The corrected fields—not the misspelled originals—are passed into prompts, one-pager briefs, quote posts, social SVGs, and layout QA. CCC names, approved people, policy terminology, acronyms, URLs, email addresses, filesystem paths, and configured domain terms are protected from false corrections. The `create_generation_prompt` compatibility response places the spelling notice above the corrected prompt; other creation tools expose the structured report as `spelling`.
 
 ### `create_one_pager`
 
@@ -204,7 +214,7 @@ Checks whether required CCC logo and font assets are available. By default it ch
 
 ### `qa_social_layout`
 
-Checks headline, body, and CTA copy against CCC social layout limits before generation. In `final` mode, over-limit copy is a validation error; in `draft` mode, it is reported as a warning.
+Corrects and reports spelling issues, then checks the corrected headline, body, and CTA copy against CCC social layout limits before generation. In `final` mode, over-limit copy is a validation error; in `draft` mode, it is reported as a warning.
 
 ### `validate_svg_artifact`
 

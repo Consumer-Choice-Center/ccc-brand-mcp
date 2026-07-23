@@ -17,6 +17,12 @@
       "audienceAppeal": "People who feel not represented, restricted, and ready for change."
     }
   },
+  "spelling": {
+    "languagePolicy": "Accept standard American and British English spellings.",
+    "generationPolicy": "Before every generation or copy-layout tool runs, detect likely spelling errors in user-supplied copy, return a visible correction notice, and use corrected copy in the generated prompt, brief, SVG, or QA result.",
+    "exceptions": "Do not flag CCC names, approved team-member names, policy terminology, acronyms, URLs, email addresses, filesystem paths, or configured domain terms.",
+    "outputContract": "Return original and corrected fields plus highlighted replacements in the spelling report whenever corrections are applied."
+  },
   "colors": {
     "primary": {
       "autumnOrange": "#E95C1F",
@@ -716,6 +722,7 @@
     }
   },
   "strictGenerationRules": [
+    "Run deterministic spelling review on all user-supplied generation copy. Highlight every applied correction to the user and use only the corrected copy in generated outputs.",
     "Use only colors listed in this brand data.",
     "Use only listed typography families and weights.",
     "Use packaged official SVG logo assets by default; if unavailable, draft mode may leave a placeholder and final mode must fail validation.",

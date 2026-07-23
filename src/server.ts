@@ -28,11 +28,68 @@ import {
   validateOnePagerSvg,
   validateSpec,
 } from "./brand.js";
+import { reviewSpelling } from "./spelling.js";
 
 const server = new McpServer({
   name: "ccc-brand-mcp",
-  version: "0.7.7",
+  version: "0.8.0",
 });
+
+const cccSpellingTerms = [
+  brand.brand.name,
+  brand.brand.shortName,
+  brand.brand.tagline,
+  "one-pager",
+  "one-pagers",
+  "short-term rentals",
+  "consumerchoicecenter.org",
+  ...quotePeople.flatMap((person) => [person.fullName, person.title, ...person.aliases]),
+];
+
+function correctTextInput<T extends Record<string, unknown>>(input: T, fields: Array<keyof T>) {
+  const text = Object.fromEntries(
+    fields
+      .filter((field) => typeof input[field] === "string")
+      .map((field) => [String(field), input[field] as string]),
+  );
+  const spelling = reviewSpelling(text, { extraTerms: cccSpellingTerms });
+  const corrected = { ...input };
+  for (const field of fields) {
+    const replacement = spelling.correctedFields[String(field)];
+    if (replacement !== undefined) corrected[field] = replacement as T[keyof T];
+  }
+  return { corrected, spelling };
+}
+
+function correctOnePagerInput<T extends {
+  request: string;
+  headline?: string;
+  centralObject?: string;
+  keyMessage?: string;
+  sources: string[];
+}>(input: T) {
+  const fields: Record<string, string | undefined> = {
+    request: input.request,
+    headline: input.headline,
+    centralObject: input.centralObject,
+    keyMessage: input.keyMessage,
+  };
+  input.sources.forEach((source, index) => {
+    fields[`sources[${index}]`] = source;
+  });
+  const spelling = reviewSpelling(fields, { extraTerms: cccSpellingTerms });
+  return {
+    corrected: {
+      ...input,
+      request: spelling.correctedFields.request,
+      headline: spelling.correctedFields.headline,
+      centralObject: spelling.correctedFields.centralObject,
+      keyMessage: spelling.correctedFields.keyMessage,
+      sources: input.sources.map((source, index) => spelling.correctedFields[`sources[${index}]`] ?? source),
+    },
+    spelling,
+  };
+}
 
 const sectionSchema = z
   .enum([
@@ -43,6 +100,7 @@ const sectionSchema = z
     "social",
     "video",
     "policyOutputs",
+    "spelling",
     "strictGenerationRules",
   ])
   .default("all");
@@ -207,7 +265,7 @@ server.tool(
 
 server.tool(
   "qa_social_layout",
-  "Check whether social or lower-third copy fits CCC layout limits before generating SVG.",
+  "Correct and visibly report spelling issues, then check whether the corrected social or lower-third copy fits CCC layout limits before generating SVG.",
   {
     template: z.enum(["policy_alert", "statistic", "quote", "cta", "lower_third"]).default("policy_alert"),
     headline: z.string().min(1).max(240),
@@ -215,9 +273,12 @@ server.tool(
     cta: z.string().max(160).optional(),
     mode: z.enum(["draft", "final"]).default("final"),
   },
-  async ({ template, headline, body, cta, mode }) => ({
-    content: [{ type: "text", text: asText(qaSocialLayout({ template, headline, body, cta, mode })) }],
-  }),
+  async (input) => {
+    const { corrected, spelling } = correctTextInput(input, ["headline", "body", "cta"]);
+    return {
+      content: [{ type: "text", text: asText({ ...qaSocialLayout(corrected), spelling }) }],
+    };
+  },
 );
 
 server.tool(
@@ -249,20 +310,27 @@ server.tool(
 
 server.tool(
   "create_generation_prompt",
-  "Create a strict brand-locked prompt for another LLM or image/design model.",
+  "Correct and visibly report spelling issues, then create a strict brand-locked prompt for another LLM or image/design model using the corrected request.",
   {
     request: z.string().min(1),
     outputType: z.enum(["social_post", "one_pager", "video_graphic", "policy_document", "website_section", "ad", "general"]).default("general"),
     includeNegativePrompt: z.boolean().default(true),
   },
-  async ({ request, outputType, includeNegativePrompt }) => ({
-    content: [{ type: "text", text: createGenerationPrompt({ request, outputType, includeNegativePrompt }) }],
-  }),
+  async (input) => {
+    const { corrected, spelling } = correctTextInput(input, ["request"]);
+    const prompt = createGenerationPrompt(corrected);
+    const spellingHeader = spelling.hasCorrections
+      ? `${spelling.userNotice}\n${spelling.highlightedCorrections.join("\n")}`
+      : spelling.userNotice;
+    return {
+      content: [{ type: "text", text: `${spellingHeader}\n\n${prompt}` }],
+    };
+  },
 );
 
 server.tool(
   "create_one_pager",
-  "Materialize a complete clean CCC one-pager working SVG directly into the shared local workspace. Returns a compact file path and SHA-256 instead of transferring the SVG through chat, preventing resource truncation. Edit that file in place, never append content to the populated visual reference, and validate by path with validate_one_pager_file.",
+  "Correct and visibly report spelling issues in the request and supplied copy, then materialize a complete clean CCC one-pager working SVG directly into the shared local workspace. Returns a compact file path and SHA-256 instead of transferring the SVG through chat, preventing resource truncation. Edit that file in place, never append content to the populated visual reference, and validate by path with validate_one_pager_file.",
   {
     request: z.string().min(1).max(4000).describe("The policy topic, argument, audience, and evidence the one-pager must communicate."),
     template: z.enum(["auto", ...onePagerTemplateIds]).default("auto").describe("Use auto unless the request explicitly calls for the material/cost-chain or access/barriers composition."),
@@ -274,15 +342,16 @@ server.tool(
     mode: z.enum(["draft", "final"]).default("draft"),
   },
   async (input) => {
-    const workingFile = materializeOnePagerWorkingTemplate(input);
+    const { corrected, spelling } = correctOnePagerInput(input);
+    const workingFile = materializeOnePagerWorkingTemplate(corrected);
     const brief = createOnePagerBrief({
-      ...input,
+      ...corrected,
       workingFilePath: workingFile.outputPath,
       workingFileSha256: workingFile.sha256,
     });
     return {
       content: [
-        { type: "text" as const, text: asText({ ...brief, workingFile }) },
+        { type: "text" as const, text: asText({ ...brief, spelling, workingFile }) },
       ],
     };
   },
@@ -316,7 +385,7 @@ server.tool(
 
 server.tool(
   "create_quote_post",
-  "Create a download-ready, Illustrator-safe SVG 1.1 CCC quote post for an approved team member. Keeps text and portrait in protected non-overlapping zones, scales portrait prominence proportionally to quote length, contains the full uncropped portrait, embeds it through xlink:href, keeps text editable with packaged installed fonts, verifies the name/title, and always applies Autumn Orange emphasis.",
+  "Correct and visibly report spelling issues in the supplied quote, then create a download-ready, Illustrator-safe SVG 1.1 CCC quote post for an approved team member using corrected text. Keeps text and portrait in protected non-overlapping zones, scales portrait prominence proportionally to quote length, contains the full uncropped portrait, embeds it through xlink:href, keeps text editable with packaged installed fonts, verifies the name/title, and always applies Autumn Orange emphasis.",
   {
     quote: z.string().min(1).max(150).describe("Exact quote text without surrounding quotation marks."),
     person: z.enum(quotePersonIds).describe("Approved quoted person. Read brand://ccc/quote-people when the user's name or role needs resolving."),
@@ -325,14 +394,17 @@ server.tool(
     assetBasePath: z.string().optional().describe("Optional asset directory containing the template, portraits, logo, and fonts."),
     mode: z.enum(["draft", "final"]).default("draft"),
   },
-  async (input) => ({
-    content: [{ type: "text", text: asText(createQuotePostSvg(input)) }],
-  }),
+  async (input) => {
+    const { corrected, spelling } = correctTextInput(input, ["quote", "emphasis"]);
+    return {
+      content: [{ type: "text", text: asText({ ...createQuotePostSvg(corrected), spelling }) }],
+    };
+  },
 );
 
 server.tool(
   "create_social_svg",
-  "Generate an Illustrator-safe SVG 1.1 CCC artwork from the reference-locked social templates. This is the only supported social-post renderer: never recreate its SVG through a legacy or freeform generator. Outputs use editable packaged CCC fonts, native unscaled headline glyphs, inline vector logos, and xlink:href for embedded rasters. Any PNG preview must be rendered with the packaged files in assets/fonts; never accept a system-font fallback preview. For template=quote, provide person and put the quote in headline; the generator uses reference 5 with a non-overlapping, uncropped, fully embedded approved portrait, verified attribution, and mandatory orange emphasis.",
+  "Correct and visibly report spelling issues in all supplied copy, then generate an Illustrator-safe SVG 1.1 CCC artwork from the reference-locked social templates using only corrected text. This is the only supported social-post renderer: never recreate its SVG through a legacy or freeform generator. Outputs use editable packaged CCC fonts, native unscaled headline glyphs, inline vector logos, and xlink:href for embedded rasters. Any PNG preview must be rendered with the packaged files in assets/fonts; never accept a system-font fallback preview. For template=quote, provide person and put the quote in headline; the generator uses reference 5 with a non-overlapping, uncropped, fully embedded approved portrait, verified attribution, and mandatory orange emphasis.",
   {
     template: z.enum(["policy_alert", "statistic", "quote", "cta", "lower_third"]).default("policy_alert"),
     styleVariant: z.enum(["auto", "navy_poster", "petition_push", "orange_alert", "statistic_card", "contrast_cards", "quote_post"]).default("auto").describe("Optional CCC guide variant. auto maps quote posts to quote_post, petition/lawmaker asks to petition_push, policy alerts to orange_alert, statistics to statistic_card, and most other posts to navy_poster."),
@@ -351,14 +423,26 @@ server.tool(
     assetBasePath: z.string().optional().describe("Optional asset directory used to verify officialLogoHref and default logo assets."),
     mode: z.enum(["draft", "final"]).default("draft"),
   },
-  async ({ template, styleVariant, headline, leadIn, kicker, body, cta, comparisonLeft, comparisonRight, person, emphasis, variation, includeLogoPlaceholder, officialLogoHref, assetBasePath, mode }) => ({
-    content: [
-      {
-        type: "text",
-        text: asText(createSocialSvg({ template, styleVariant, headline, leadIn, kicker, body, cta, comparisonLeft, comparisonRight, person, emphasis, variation, includeLogoPlaceholder, officialLogoHref, assetBasePath, mode })),
-      },
-    ],
-  }),
+  async (input) => {
+    const { corrected, spelling } = correctTextInput(input, [
+      "headline",
+      "leadIn",
+      "kicker",
+      "body",
+      "cta",
+      "comparisonLeft",
+      "comparisonRight",
+      "emphasis",
+    ]);
+    return {
+      content: [
+        {
+          type: "text",
+          text: asText({ ...createSocialSvg(corrected), spelling }),
+        },
+      ],
+    };
+  },
 );
 
 const transport = new StdioServerTransport();
