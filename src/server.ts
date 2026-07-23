@@ -13,10 +13,10 @@ import {
   getOnePagerReferenceAssets,
   getOnePagerWorkingTemplateAssets,
   getBrandSection,
+  materializeOnePagerWorkingTemplate,
   postReferencePaths,
   onePagerReferencePaths,
   onePagerTemplateIds,
-  onePagerTemplates,
   qaSocialLayout,
   quotePeople,
   quotePersonIds,
@@ -24,13 +24,14 @@ import {
   socialTemplates,
   validateSvgArtifact,
   validateIllustratorSvg,
+  validateOnePagerFile,
   validateOnePagerSvg,
   validateSpec,
 } from "./brand.js";
 
 const server = new McpServer({
   name: "ccc-brand-mcp",
-  version: "0.7.5",
+  version: "0.7.7",
 });
 
 const sectionSchema = z
@@ -128,24 +129,17 @@ server.resource("ccc-one-pager-references", "brand://ccc/one-pager-references", 
         uri: uri.href,
         mimeType: "application/json",
         text: asText({
-          usage: "Visual references only. Do not use these populated files as working artwork. Use brand://ccc/one-pager-working-templates so original copy and raster illustrations cannot remain underneath new content.",
+          usage: "Metadata for local visual references only. Never retrieve the multi-megabyte SVGs through chat. Call create_one_pager to materialize a clean working file, and inspect the returned local visualReferencePath only when visual comparison is needed.",
           canvas: brand.visualSystem.onePagers.canvas,
           lockedElements: brand.visualSystem.onePagers.lockedElements,
           mutableElements: brand.visualSystem.onePagers.mutableElements,
           illustrationRules: brand.visualSystem.onePagers.illustrationRules,
           typographyContracts: brand.visualSystem.onePagers.typographyContracts,
           componentLayoutRules: brand.visualSystem.onePagers.componentLayoutRules,
-          templates: onePagerTemplates,
+          templates: references.map(({ svg, ...reference }) => reference),
           referencePaths: onePagerReferencePaths,
         }),
       },
-      ...references
-        .filter((reference) => reference.exists && reference.svg)
-        .map((reference) => ({
-          uri: `${uri.href}/${reference.referenceAsset.split("/").pop()}`,
-          mimeType: "image/svg+xml",
-          text: reference.svg ?? "",
-        })),
     ],
   };
 });
@@ -158,38 +152,15 @@ server.resource("ccc-one-pager-working-templates", "brand://ccc/one-pager-workin
         uri: uri.href,
         mimeType: "application/json",
         text: asText({
-          usage: "Mandatory clean production shells. All reference text and raster illustrations have already been removed; add new content only inside declared components and use the normalized existing connector groups.",
+          usage: "Metadata only. Do not retrieve a working shell as SVG text. Call create_one_pager to materialize the complete clean shell directly into the shared workspace, then validate it by local path with validate_one_pager_file.",
           canvas: brand.visualSystem.onePagers.canvas,
           componentLayoutRules: brand.visualSystem.onePagers.componentLayoutRules,
           templates: templates.map(({ svg, ...template }) => template),
         }),
       },
-      ...templates
-        .filter((template) => template.exists && template.svg)
-        .map((template) => ({
-          uri: `${uri.href}/${template.referenceAsset.split("/").pop()}`,
-          mimeType: "image/svg+xml",
-          text: template.svg ?? "",
-        })),
     ],
   };
 });
-
-for (const template of onePagerTemplates) {
-  const fileName = template.referenceAsset.split("/").pop()!;
-  server.resource(`ccc-one-pager-working-${template.id}`, `brand://ccc/one-pager-working-templates/${fileName}`, async (uri) => {
-    const working = getOnePagerWorkingTemplateAssets().find((entry) => entry.id === template.id);
-    return {
-      contents: [{ uri: uri.href, mimeType: "image/svg+xml", text: working?.svg ?? "" }],
-    };
-  });
-  server.resource(`ccc-one-pager-reference-${template.id}`, `brand://ccc/one-pager-references/${fileName}`, async (uri) => {
-    const reference = getOnePagerReferenceAssets().find((entry) => entry.id === template.id);
-    return {
-      contents: [{ uri: uri.href, mimeType: "image/svg+xml", text: reference?.svg ?? "" }],
-    };
-  });
-}
 
 server.tool(
   "get_brand_guidelines",
@@ -291,7 +262,7 @@ server.tool(
 
 server.tool(
   "create_one_pager",
-  "Start a strict CCC one-pager from a cleaned production shell derived from one of the two packaged reference SVGs. The linked working SVG has all original copy and raster illustrations removed, retains the locked geometry, and contains normalized connector shafts and arrowheads. Never append content to the populated visual reference.",
+  "Materialize a complete clean CCC one-pager working SVG directly into the shared local workspace. Returns a compact file path and SHA-256 instead of transferring the SVG through chat, preventing resource truncation. Edit that file in place, never append content to the populated visual reference, and validate by path with validate_one_pager_file.",
   {
     request: z.string().min(1).max(4000).describe("The policy topic, argument, audience, and evidence the one-pager must communicate."),
     template: z.enum(["auto", ...onePagerTemplateIds]).default("auto").describe("Use auto unless the request explicitly calls for the material/cost-chain or access/barriers composition."),
@@ -299,29 +270,40 @@ server.tool(
     centralObject: z.string().max(240).optional().describe("The physical object, product, device, building, or cutaway composite that should replace the source house/AC illustration."),
     keyMessage: z.string().max(280).optional().describe("Concise closing consumer-choice takeaway for the locked bottom navy panel."),
     sources: z.array(z.string().min(1).max(300)).max(12).default([]).describe("Named source citations for the locked footer source line. At least one is required in final mode."),
+    outputFileName: z.string().min(5).max(140).regex(/^[a-z0-9][a-z0-9._-]*\.svg$/i).optional().describe("Optional plain SVG file name for the materialized shell. It is always written inside the configured CCC output directory."),
     mode: z.enum(["draft", "final"]).default("draft"),
   },
   async (input) => {
-    const brief = createOnePagerBrief(input);
+    const workingFile = materializeOnePagerWorkingTemplate(input);
+    const brief = createOnePagerBrief({
+      ...input,
+      workingFilePath: workingFile.outputPath,
+      workingFileSha256: workingFile.sha256,
+    });
     return {
       content: [
-        { type: "text" as const, text: asText(brief) },
-        {
-          type: "resource_link" as const,
-          name: `${brief.template.id}-one-pager-source-svg`,
-          title: `Required clean CCC ${brief.template.label} working SVG`,
-          uri: brief.referenceResourceUri,
-          description: "Use this cleaned SVG directly. Its original copy and raster illustrations are already removed; do not merge it with the populated visual reference.",
-          mimeType: "image/svg+xml",
-        },
+        { type: "text" as const, text: asText({ ...brief, workingFile }) },
       ],
     };
   },
 );
 
 server.tool(
+  "validate_one_pager_file",
+  "Validate a completed CCC one-pager directly from its local workspace file path. The MCP reads the SVG server-side and returns only a compact validation report, avoiding truncation of large SVG or embedded-image payloads. This includes both strict one-pager and Adobe Illustrator validation.",
+  {
+    filePath: z.string().min(1).max(1000).describe("Absolute path or CCC-workspace-relative path to the completed SVG file."),
+    template: z.enum(onePagerTemplateIds).optional().describe("Expected locked one-pager template id."),
+    mode: z.enum(["draft", "final"]).default("final"),
+  },
+  async (input) => ({
+    content: [{ type: "text", text: asText(validateOnePagerFile(input)) }],
+  }),
+);
+
+server.tool(
   "validate_one_pager_svg",
-  "Validate a completed CCC one-pager SVG against the exact selected source template. Measures retained path/panel/divider/brush/connector geometry, then enforces the locked canvas, Anton/Montserrat/DM Mono/Hind type roles, contained text-safe boxes, 24-unit gutters, and three clean double-ended Illustrator-safe connectors. Metadata alone cannot satisfy this validator.",
+  "Compatibility validator for callers that already hold complete SVG markup. For normal one-pager workflows use validate_one_pager_file so large SVG and embedded-image payloads never pass through chat.",
   {
     svg: z.string().min(1).max(12_000_000).describe("Full standalone one-pager SVG markup."),
     template: z.enum(onePagerTemplateIds).optional().describe("Expected locked one-pager template id."),

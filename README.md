@@ -101,12 +101,14 @@ Use `outputType: "one_pager"` to include the locked one-pager reference rules au
 
 ### `create_one_pager`
 
-Creates the generation contract for a CCC policy one-pager and returns a directly readable MCP resource link to the selected clean working SVG. The clean shell is derived from the visual reference but has all original text and raster illustrations removed before composition, preventing new content from being layered over the old one-pager. The tool selects one of two packaged SVG templates:
+Creates the generation contract for a CCC policy one-pager and materializes the selected clean working SVG directly into the shared local workspace. It returns a compact `workingFile.outputPath`, byte count, SHA-256, and composition brief instead of sending the full SVG through chat. This avoids client-side truncation of large XML resources. The clean shell is derived from the visual reference but has all original text and raster illustrations removed before composition. The tool selects one of two packaged SVG templates:
 
 - `material_cost_chain`: tariffs, costs, product components, supply chains, and material flows
 - `access_barriers`: permits, approvals, restrictions, health, safety, and product-access barriers
 
 Both templates use the exact `0 0 1186.51 1535.49` canvas. The selected clean SVG is the mandatory production shell: canvas, section heights, typography hierarchy, headline origin, navy/orange/warm-white color roles, brush shapes, normalized connectors, rules, cards, footer, and logo geometry remain fixed. New fitted wording and one embedded contextual object composite are added to the empty slots. Final SVGs must preserve `data-ccc-clean-template="mutable-content-cleared-v1"`, declare the exact `data-ccc-template-source` returned by the tool, and retain at least 90% of the selected reference's measured vector geometry.
+
+Edit `workingFile.outputPath` in place with local filesystem operations. Never request the complete working shell or populated visual reference through an MCP resource reader, paste it through chat, or reconstruct it from a truncated response.
 
 The central illustration must depict the physical object most directly connected to the topic. It should match the supplied photorealistic transparent-background cutout/cutaway style, remain inside the original illustration zone, avoid every text area, and be embedded as a base64 image through SVG 1.1 `xlink:href` in the final SVG.
 
@@ -118,21 +120,36 @@ The central illustration must depict the physical object most directly connected
   "centralObject": "a cutaway smartphone showing the battery, screen, and repairable internal modules",
   "keyMessage": "Consumers should be able to repair the products they own.",
   "sources": ["European Commission right-to-repair rules", "OECD consumer repair data"],
+  "outputFileName": "right-to-repair-working.svg",
+  "mode": "final"
+}
+```
+
+### `validate_one_pager_file`
+
+Validates a completed one-pager by local file path. The MCP reads the file server-side and returns only a compact report containing the file checksum, strict one-pager results, and Illustrator compatibility results. This is the required production validator because it avoids transferring large SVG markup and embedded images through chat.
+
+Validation is template-aware rather than based on a generic social-post palette. It accepts the selected reference's native colors plus official CCC colors, canonicalizes Illustrator/PostScript aliases such as `Anton-Regular`, `Montserrat-BoldItalic`, and `DMMono-Medium`, and checks visible text only so unused Illustrator style definitions cannot trigger false palette or font failures. Text roles are checked against the template-native Anton, Montserrat, and DM Mono hierarchy. Component spacing uses a 16-unit minimum gutter, supports standard one-to-four-value SVG inset shorthand, and permits the reference-native source/logo footer relationship.
+
+```json
+{
+  "filePath": "/absolute/path/to/right-to-repair-working.svg",
+  "template": "material_cost_chain",
   "mode": "final"
 }
 ```
 
 ### `validate_one_pager_svg`
 
-Validates the completed one-pager before handoff. It first compares the SVG's paths, panels, dividers, brush shapes, and connector geometry to the declared packaged source template; metadata without retained geometry fails. It then rejects populated-source text or raster images, orphaned text, transformed/tspan text, hidden `(0,0)` compliance placeholders, text outside measured safe boxes, text-to-text overlap, and text-to-illustration overlap. It enforces one uncropped central illustration inside the selected template safe zone and exactly three clean double-ended connectors with one 3-unit shaft, a `6 7` dash rhythm, two compact tangent-aligned arrowheads, and no marker-only geometry.
+Compatibility validator for callers that already hold complete SVG markup. Normal one-pager workflows must use `validate_one_pager_file`. Both validators compare paths, panels, dividers, brush shapes, and connector geometry to the declared packaged source template; reject populated-source content, unsafe text, and collisions; and enforce one uncropped illustration plus three clean connectors.
 
 ### `brand://ccc/one-pager-references`
 
-Exposes both populated SVGs for visual comparison only. They must never be used as working artwork.
+Exposes compact metadata and local paths for the populated visual references. It no longer transfers the multi-megabyte SVGs through chat.
 
 ### `brand://ccc/one-pager-working-templates`
 
-Exposes the two mandatory clean production shells. Each removes every original `<text>` and `<image>` element, preserves locked vector geometry, and normalizes the three existing connector groups. `create_one_pager` links directly to the selected clean SVG.
+Exposes compact metadata for the two clean production shells. Call `create_one_pager` to materialize the selected complete SVG directly into the workspace.
 
 ### `create_social_svg`
 
@@ -311,7 +328,7 @@ This server treats the brand guide as a contract:
 - missing official logo assets are violations in `final` mode and warnings in `draft` mode; packaged SVG logos are used by default for generated SVGs
 - SVG logo placeholders are forbidden in `final` mode
 - generated SVGs must pass `validate_svg_artifact` before handoff
-- one-pager-sized or one-pager-labelled SVGs are automatically routed through `validate_one_pager_svg`; generic artifact validation cannot bypass the template gate
+- one-pager-sized or one-pager-labelled SVGs are automatically routed through the strict one-pager gate; production workflows use `validate_one_pager_file` so complete SVG markup never passes through chat
 - all social SVGs must declare `data-ccc-layout-lock="reference-exact"`; freeform and legacy-rendered social files are rejected
 - social dimensions outside `1080x1350` are warnings unless explicitly intended
 - final social graphics should use no more than five unique brand colors and no more than one tertiary accent color
@@ -319,7 +336,7 @@ This server treats the brand guide as a contract:
 - petition, policymaker, lawmaker, mandate, and direct advocacy asks should use `petition_push` or `orange_alert`, not a generic clean navy poster
 - social outputs should vary across `navy_poster`, `petition_push`, `orange_alert`, `statistic_card`, `contrast_cards`, and `quote_post` instead of repeatedly using the same clean navy layout
 - packaged SVG post references are available through `brand://ccc/post-references` and are the locked geometry for generated social posts
-- `create_one_pager` returns a directly readable clean working SVG with source copy/images removed; generated one-pagers must preserve the clean-template marker, retain at least 90% of the exact reference geometry, and pass collision-aware validation
+- `create_one_pager` materializes a checksummed clean working file with source copy/images removed; generated one-pagers must edit that local file in place, preserve the clean-template marker, retain at least 90% of the exact reference geometry, and pass `validate_one_pager_file`
 - quote posts must use reference 5 through `create_quote_post`, an approved packaged portrait, and the verified name/title from `brand://ccc/quote-people`
 - display copy must fit the native reference slots without `textLength`, `lengthAdjust`, `font-stretch`, or non-uniform scale transforms; references 1, 2, 4, and 5 use Anton, while reference 3 uses Montserrat Bold
 - raster previews must load the packaged CCC font files explicitly; silent serif or system-font fallback renders are invalid
