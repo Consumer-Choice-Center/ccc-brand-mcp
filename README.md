@@ -25,10 +25,24 @@ Official CCC SVG logo variants are included in `assets/logos`. The approved Mont
 
 ## Install
 
+Use Node.js 22 or 24 and pnpm 11. Corepack is not bundled with every Node.js distribution, so either activate the pinned pnpm version with Corepack or install it directly:
+
 ```bash
-corepack enable
-pnpm install
+corepack enable && corepack prepare pnpm@11.7.0 --activate
+```
+
+If `corepack` is unavailable:
+
+```bash
+npm install --global pnpm@11.7.0
+```
+
+Then install, build, and run the deployment smoke test:
+
+```bash
+pnpm install --frozen-lockfile
 pnpm run build
+pnpm run smoke
 ```
 
 ## Run
@@ -57,6 +71,56 @@ For local development, rebuild after changes and point the client at `dist/serve
 ```bash
 pnpm run build
 ```
+
+## Server Deployment
+
+This is a stdio MCP server, not an HTTP service. It does not open a TCP port or run as a conventional web daemon. The MCP client starts the process and communicates over standard input/output. On a remote server, use a dedicated SSH account or run the container through SSH.
+
+### Deploy from the repository
+
+On a Linux server with Node.js 22 or 24:
+
+```bash
+git clone https://github.com/Consumer-Choice-Center/ccc-brand-mcp.git /opt/ccc-brand-mcp
+cd /opt/ccc-brand-mcp
+npm install --global pnpm@11.7.0
+pnpm install --frozen-lockfile
+pnpm run check
+pnpm test
+pnpm run smoke
+pnpm run audit:prod
+```
+
+The account running the MCP must be able to write to `deliverables/`. To keep generated files elsewhere, set `CCC_BRAND_OUTPUT_DIR` to an absolute writable directory. `CCC_BRAND_WORKSPACE_DIR` may be set to the repository root when the process starts from another directory.
+
+A remote client can start the server over SSH:
+
+```json
+{
+  "mcpServers": {
+    "ccc-brand": {
+      "command": "ssh",
+      "args": [
+        "mcp-server.example.org",
+        "cd /opt/ccc-brand-mcp && exec node dist/server.js"
+      ]
+    }
+  }
+}
+```
+
+Use SSH keys, host-key verification, and a restricted server account. Do not expose the stdio process directly to the public internet.
+
+### Docker
+
+Build the reproducible Node 22 image:
+
+```bash
+docker build -t ccc-brand-mcp:0.8.1 .
+docker run --rm -i -v ccc-brand-output:/app/deliverables ccc-brand-mcp:0.8.1
+```
+
+The `-i` flag is required for MCP stdio. Keep the output volume so generated deliverables survive container removal. A remote client can use the same `ssh` configuration pattern with the `docker run --rm -i ...` command as the remote command.
 
 ## Resources
 
@@ -318,9 +382,12 @@ Run `audit_brand_assets` before using the MCP for final production output.
 ```bash
 pnpm run check
 pnpm test
+pnpm run smoke
+pnpm run audit:prod
+npm pack --dry-run
 ```
 
-The test suite covers canonical social sizing, palette/font rejection, strict logo verification, prompt/SVG dimensions, generated SVG artifact linting, layout overflow, and asset manifest consistency.
+The test suite covers canonical social sizing, palette/font rejection, strict logo verification, MCP transport, prompt/SVG dimensions, generated SVG artifact linting, layout overflow, and asset manifest consistency. The smoke test starts the compiled server through the real MCP stdio client, checks the reported version, and verifies all packaged brand assets.
 
 ## GitHub Setup
 
@@ -333,7 +400,7 @@ git branch -M main
 git push -u origin main
 ```
 
-3. GitHub Actions will run `pnpm install --frozen-lockfile`, `pnpm run check`, and `pnpm run build` on pushes and PRs.
+3. GitHub Actions will test Node.js 22 and 24, run the full test and deployment smoke suites, audit production dependencies, and inspect the npm package on pushes and PRs.
 
 ## Strictness Model
 

@@ -1,0 +1,10 @@
+.git
+.github
+node_modules
+dist
+deliverables
+outputs
+tmp
+.pnpm-store
+*.log
+.DS_Store

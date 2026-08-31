@@ -11,6 +11,7 @@
     "dist",
     "data",
     "assets",
+    "scripts/smoke-test.mjs",
     "README.md"
   ],
   "scripts": {
@@ -18,10 +19,12 @@
     "start": "node dist/server.js",
     "check": "tsc --noEmit",
     "test": "pnpm run build && node --test tests/*.test.mjs",
+    "smoke": "node scripts/smoke-test.mjs",
+    "audit:prod": "pnpm audit --prod",
     "render:samples": "pnpm run build && node scripts/generate-reference-variants.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.29.0",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "dictionary-en": "4.0.0",
     "dictionary-en-gb": "3.0.0",
     "nspell": "2.1.5",
@@ -33,7 +36,8 @@
     "typescript": "5.9.3"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22 <26",
+    "pnpm": ">=11 <12"
   },
   "license": "UNLICENSED"
 }
