@@ -17,6 +17,18 @@ test("one-pager MCP workflow materializes locally without returning large SVG te
 
   await client.connect(transport);
   try {
+    const status = await client.callTool({ name: "get_mcp_status", arguments: {} });
+    assert.equal(status.content.length, 1);
+    assert.equal(status.content[0].type, "text");
+    const statusPayload = JSON.parse(status.content[0].text);
+    const packageMetadata = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
+    assert.equal(statusPayload.ok, true);
+    assert.equal(statusPayload.version, packageMetadata.version);
+    assert.equal(statusPayload.server, packageMetadata.name);
+    assert.equal(statusPayload.assetHealth.ok, true);
+    assert.equal(statusPayload.capabilities.includes("spelling-correction-us-uk"), true);
+    assert.match(statusPayload.outputPath, /deliverables$/);
+
     const result = await client.callTool({
       name: "create_one_pager",
       arguments: {

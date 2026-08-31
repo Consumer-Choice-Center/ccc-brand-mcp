@@ -1,5 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { z } from "zod";
 import {
   asText,
@@ -30,9 +32,18 @@ import {
 } from "./brand.js";
 import { reviewSpelling } from "./spelling.js";
 
+const packageMetadata = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+) as {
+  name: string;
+  version: string;
+  dependencies?: Record<string, string>;
+};
+const runtimeStartedAt = new Date().toISOString();
+
 const server = new McpServer({
-  name: "ccc-brand-mcp",
-  version: "0.8.0",
+  name: packageMetadata.name,
+  version: packageMetadata.version,
 });
 
 const cccSpellingTerms = [
@@ -219,6 +230,52 @@ server.resource("ccc-one-pager-working-templates", "brand://ccc/one-pager-workin
     ],
   };
 });
+
+server.tool(
+  "get_mcp_status",
+  "Report the live CCC Brand MCP version, runtime paths, core capabilities, and packaged asset health. Use this to confirm a client loaded the latest rebuilt server after an update.",
+  {},
+  async () => {
+    const assets = auditAssets();
+    const workspacePath = process.env.CCC_BRAND_WORKSPACE_DIR || process.cwd();
+    return {
+      content: [{
+        type: "text",
+        text: asText({
+          ok: assets.ok,
+          server: packageMetadata.name,
+          version: packageMetadata.version,
+          runtimeStartedAt,
+          nodeVersion: process.version,
+          workspacePath,
+          assetBasePath: assets.basePath,
+          outputPath: process.env.CCC_BRAND_OUTPUT_DIR || resolve(workspacePath, "deliverables"),
+          capabilities: [
+            "brand-guidelines",
+            "spelling-correction-us-uk",
+            "reference-locked-social-svg",
+            "quote-post-svg",
+            "one-pager-materialization",
+            "one-pager-file-validation",
+            "illustrator-svg-validation",
+          ],
+          spellingDictionaries: {
+            americanEnglish: packageMetadata.dependencies?.["dictionary-en"],
+            britishEnglish: packageMetadata.dependencies?.["dictionary-en-gb"],
+          },
+          assetHealth: {
+            ok: assets.ok,
+            missingFonts: assets.missingFonts,
+            missingLogos: assets.missingLogos,
+            missingQuotePeople: assets.missingQuotePeople,
+            missingOnePagerReferences: assets.missingOnePagerReferences,
+          },
+          restartAdvice: "If this version is older than the repository package version, rebuild dist and restart the MCP client or open a new chat.",
+        }),
+      }],
+    };
+  },
+);
 
 server.tool(
   "get_brand_guidelines",

@@ -70,6 +70,12 @@ pnpm run build
 
 ## Tools
 
+### `get_mcp_status`
+
+Returns the version of the MCP process that answered the request, its startup time, Node runtime, workspace/output paths, enabled capabilities, spelling dictionary versions, and a compact asset-health report. After pulling or rebuilding an update, call this tool from a new chat to verify that the client is not still connected to an older process.
+
+Expected version for this release: `0.8.1`.
+
 ### `get_brand_guidelines`
 
 Returns all or one section of the brand system.

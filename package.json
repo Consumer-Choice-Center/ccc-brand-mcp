@@ -1,6 +1,6 @@
 {
   "name": "ccc-brand-mcp",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Strict MCP server for Consumer Choice Center brand-guided design generation.",
   "type": "module",
   "packageManager": "pnpm@11.7.0",
