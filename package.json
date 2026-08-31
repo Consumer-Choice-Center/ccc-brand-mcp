@@ -1,6 +1,6 @@
 {
   "name": "ccc-brand-mcp",
-  "version": "0.7.5",
+  "version": "0.8.1",
   "description": "Strict MCP server for Consumer Choice Center brand-guided design generation.",
   "type": "module",
   "packageManager": "pnpm@11.7.0",
@@ -22,10 +22,14 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",
+    "dictionary-en": "4.0.0",
+    "dictionary-en-gb": "3.0.0",
+    "nspell": "2.1.5",
     "zod": "3.25.76"
   },
   "devDependencies": {
     "@types/node": "22.20.0",
+    "@types/nspell": "2.1.6",
     "typescript": "5.9.3"
   },
   "engines": {

@@ -1,5 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { z } from "zod";
 import {
   asText,
@@ -13,10 +15,10 @@ import {
   getOnePagerReferenceAssets,
   getOnePagerWorkingTemplateAssets,
   getBrandSection,
+  materializeOnePagerWorkingTemplate,
   postReferencePaths,
   onePagerReferencePaths,
   onePagerTemplateIds,
-  onePagerTemplates,
   qaSocialLayout,
   quotePeople,
   quotePersonIds,
@@ -24,14 +26,81 @@ import {
   socialTemplates,
   validateSvgArtifact,
   validateIllustratorSvg,
+  validateOnePagerFile,
   validateOnePagerSvg,
   validateSpec,
 } from "./brand.js";
+import { reviewSpelling } from "./spelling.js";
+
+const packageMetadata = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+) as {
+  name: string;
+  version: string;
+  dependencies?: Record<string, string>;
+};
+const runtimeStartedAt = new Date().toISOString();
 
 const server = new McpServer({
-  name: "ccc-brand-mcp",
-  version: "0.7.5",
+  name: packageMetadata.name,
+  version: packageMetadata.version,
 });
+
+const cccSpellingTerms = [
+  brand.brand.name,
+  brand.brand.shortName,
+  brand.brand.tagline,
+  "one-pager",
+  "one-pagers",
+  "short-term rentals",
+  "consumerchoicecenter.org",
+  ...quotePeople.flatMap((person) => [person.fullName, person.title, ...person.aliases]),
+];
+
+function correctTextInput<T extends Record<string, unknown>>(input: T, fields: Array<keyof T>) {
+  const text = Object.fromEntries(
+    fields
+      .filter((field) => typeof input[field] === "string")
+      .map((field) => [String(field), input[field] as string]),
+  );
+  const spelling = reviewSpelling(text, { extraTerms: cccSpellingTerms });
+  const corrected = { ...input };
+  for (const field of fields) {
+    const replacement = spelling.correctedFields[String(field)];
+    if (replacement !== undefined) corrected[field] = replacement as T[keyof T];
+  }
+  return { corrected, spelling };
+}
+
+function correctOnePagerInput<T extends {
+  request: string;
+  headline?: string;
+  centralObject?: string;
+  keyMessage?: string;
+  sources: string[];
+}>(input: T) {
+  const fields: Record<string, string | undefined> = {
+    request: input.request,
+    headline: input.headline,
+    centralObject: input.centralObject,
+    keyMessage: input.keyMessage,
+  };
+  input.sources.forEach((source, index) => {
+    fields[`sources[${index}]`] = source;
+  });
+  const spelling = reviewSpelling(fields, { extraTerms: cccSpellingTerms });
+  return {
+    corrected: {
+      ...input,
+      request: spelling.correctedFields.request,
+      headline: spelling.correctedFields.headline,
+      centralObject: spelling.correctedFields.centralObject,
+      keyMessage: spelling.correctedFields.keyMessage,
+      sources: input.sources.map((source, index) => spelling.correctedFields[`sources[${index}]`] ?? source),
+    },
+    spelling,
+  };
+}
 
 const sectionSchema = z
   .enum([
@@ -42,6 +111,7 @@ const sectionSchema = z
     "social",
     "video",
     "policyOutputs",
+    "spelling",
     "strictGenerationRules",
   ])
   .default("all");
@@ -128,24 +198,17 @@ server.resource("ccc-one-pager-references", "brand://ccc/one-pager-references", 
         uri: uri.href,
         mimeType: "application/json",
         text: asText({
-          usage: "Visual references only. Do not use these populated files as working artwork. Use brand://ccc/one-pager-working-templates so original copy and raster illustrations cannot remain underneath new content.",
+          usage: "Metadata for local visual references only. Never retrieve the multi-megabyte SVGs through chat. Call create_one_pager to materialize a clean working file, and inspect the returned local visualReferencePath only when visual comparison is needed.",
           canvas: brand.visualSystem.onePagers.canvas,
           lockedElements: brand.visualSystem.onePagers.lockedElements,
           mutableElements: brand.visualSystem.onePagers.mutableElements,
           illustrationRules: brand.visualSystem.onePagers.illustrationRules,
           typographyContracts: brand.visualSystem.onePagers.typographyContracts,
           componentLayoutRules: brand.visualSystem.onePagers.componentLayoutRules,
-          templates: onePagerTemplates,
+          templates: references.map(({ svg, ...reference }) => reference),
           referencePaths: onePagerReferencePaths,
         }),
       },
-      ...references
-        .filter((reference) => reference.exists && reference.svg)
-        .map((reference) => ({
-          uri: `${uri.href}/${reference.referenceAsset.split("/").pop()}`,
-          mimeType: "image/svg+xml",
-          text: reference.svg ?? "",
-        })),
     ],
   };
 });
@@ -158,38 +221,61 @@ server.resource("ccc-one-pager-working-templates", "brand://ccc/one-pager-workin
         uri: uri.href,
         mimeType: "application/json",
         text: asText({
-          usage: "Mandatory clean production shells. All reference text and raster illustrations have already been removed; add new content only inside declared components and use the normalized existing connector groups.",
+          usage: "Metadata only. Do not retrieve a working shell as SVG text. Call create_one_pager to materialize the complete clean shell directly into the shared workspace, then validate it by local path with validate_one_pager_file.",
           canvas: brand.visualSystem.onePagers.canvas,
           componentLayoutRules: brand.visualSystem.onePagers.componentLayoutRules,
           templates: templates.map(({ svg, ...template }) => template),
         }),
       },
-      ...templates
-        .filter((template) => template.exists && template.svg)
-        .map((template) => ({
-          uri: `${uri.href}/${template.referenceAsset.split("/").pop()}`,
-          mimeType: "image/svg+xml",
-          text: template.svg ?? "",
-        })),
     ],
   };
 });
 
-for (const template of onePagerTemplates) {
-  const fileName = template.referenceAsset.split("/").pop()!;
-  server.resource(`ccc-one-pager-working-${template.id}`, `brand://ccc/one-pager-working-templates/${fileName}`, async (uri) => {
-    const working = getOnePagerWorkingTemplateAssets().find((entry) => entry.id === template.id);
+server.tool(
+  "get_mcp_status",
+  "Report the live CCC Brand MCP version, runtime paths, core capabilities, and packaged asset health. Use this to confirm a client loaded the latest rebuilt server after an update.",
+  {},
+  async () => {
+    const assets = auditAssets();
+    const workspacePath = process.env.CCC_BRAND_WORKSPACE_DIR || process.cwd();
     return {
-      contents: [{ uri: uri.href, mimeType: "image/svg+xml", text: working?.svg ?? "" }],
+      content: [{
+        type: "text",
+        text: asText({
+          ok: assets.ok,
+          server: packageMetadata.name,
+          version: packageMetadata.version,
+          runtimeStartedAt,
+          nodeVersion: process.version,
+          workspacePath,
+          assetBasePath: assets.basePath,
+          outputPath: process.env.CCC_BRAND_OUTPUT_DIR || resolve(workspacePath, "deliverables"),
+          capabilities: [
+            "brand-guidelines",
+            "spelling-correction-us-uk",
+            "reference-locked-social-svg",
+            "quote-post-svg",
+            "one-pager-materialization",
+            "one-pager-file-validation",
+            "illustrator-svg-validation",
+          ],
+          spellingDictionaries: {
+            americanEnglish: packageMetadata.dependencies?.["dictionary-en"],
+            britishEnglish: packageMetadata.dependencies?.["dictionary-en-gb"],
+          },
+          assetHealth: {
+            ok: assets.ok,
+            missingFonts: assets.missingFonts,
+            missingLogos: assets.missingLogos,
+            missingQuotePeople: assets.missingQuotePeople,
+            missingOnePagerReferences: assets.missingOnePagerReferences,
+          },
+          restartAdvice: "If this version is older than the repository package version, rebuild dist and restart the MCP client or open a new chat.",
+        }),
+      }],
     };
-  });
-  server.resource(`ccc-one-pager-reference-${template.id}`, `brand://ccc/one-pager-references/${fileName}`, async (uri) => {
-    const reference = getOnePagerReferenceAssets().find((entry) => entry.id === template.id);
-    return {
-      contents: [{ uri: uri.href, mimeType: "image/svg+xml", text: reference?.svg ?? "" }],
-    };
-  });
-}
+  },
+);
 
 server.tool(
   "get_brand_guidelines",
@@ -236,7 +322,7 @@ server.tool(
 
 server.tool(
   "qa_social_layout",
-  "Check whether social or lower-third copy fits CCC layout limits before generating SVG.",
+  "Correct and visibly report spelling issues, then check whether the corrected social or lower-third copy fits CCC layout limits before generating SVG.",
   {
     template: z.enum(["policy_alert", "statistic", "quote", "cta", "lower_third"]).default("policy_alert"),
     headline: z.string().min(1).max(240),
@@ -244,9 +330,12 @@ server.tool(
     cta: z.string().max(160).optional(),
     mode: z.enum(["draft", "final"]).default("final"),
   },
-  async ({ template, headline, body, cta, mode }) => ({
-    content: [{ type: "text", text: asText(qaSocialLayout({ template, headline, body, cta, mode })) }],
-  }),
+  async (input) => {
+    const { corrected, spelling } = correctTextInput(input, ["headline", "body", "cta"]);
+    return {
+      content: [{ type: "text", text: asText({ ...qaSocialLayout(corrected), spelling }) }],
+    };
+  },
 );
 
 server.tool(
@@ -278,20 +367,27 @@ server.tool(
 
 server.tool(
   "create_generation_prompt",
-  "Create a strict brand-locked prompt for another LLM or image/design model.",
+  "Correct and visibly report spelling issues, then create a strict brand-locked prompt for another LLM or image/design model using the corrected request.",
   {
     request: z.string().min(1),
     outputType: z.enum(["social_post", "one_pager", "video_graphic", "policy_document", "website_section", "ad", "general"]).default("general"),
     includeNegativePrompt: z.boolean().default(true),
   },
-  async ({ request, outputType, includeNegativePrompt }) => ({
-    content: [{ type: "text", text: createGenerationPrompt({ request, outputType, includeNegativePrompt }) }],
-  }),
+  async (input) => {
+    const { corrected, spelling } = correctTextInput(input, ["request"]);
+    const prompt = createGenerationPrompt(corrected);
+    const spellingHeader = spelling.hasCorrections
+      ? `${spelling.userNotice}\n${spelling.highlightedCorrections.join("\n")}`
+      : spelling.userNotice;
+    return {
+      content: [{ type: "text", text: `${spellingHeader}\n\n${prompt}` }],
+    };
+  },
 );
 
 server.tool(
   "create_one_pager",
-  "Start a strict CCC one-pager from a cleaned production shell derived from one of the two packaged reference SVGs. The linked working SVG has all original copy and raster illustrations removed, retains the locked geometry, and contains normalized connector shafts and arrowheads. Never append content to the populated visual reference.",
+  "Correct and visibly report spelling issues in the request and supplied copy, then materialize a complete clean CCC one-pager working SVG directly into the shared local workspace. Returns a compact file path and SHA-256 instead of transferring the SVG through chat, preventing resource truncation. Edit that file in place, never append content to the populated visual reference, and validate by path with validate_one_pager_file.",
   {
     request: z.string().min(1).max(4000).describe("The policy topic, argument, audience, and evidence the one-pager must communicate."),
     template: z.enum(["auto", ...onePagerTemplateIds]).default("auto").describe("Use auto unless the request explicitly calls for the material/cost-chain or access/barriers composition."),
@@ -299,29 +395,41 @@ server.tool(
     centralObject: z.string().max(240).optional().describe("The physical object, product, device, building, or cutaway composite that should replace the source house/AC illustration."),
     keyMessage: z.string().max(280).optional().describe("Concise closing consumer-choice takeaway for the locked bottom navy panel."),
     sources: z.array(z.string().min(1).max(300)).max(12).default([]).describe("Named source citations for the locked footer source line. At least one is required in final mode."),
+    outputFileName: z.string().min(5).max(140).regex(/^[a-z0-9][a-z0-9._-]*\.svg$/i).optional().describe("Optional plain SVG file name for the materialized shell. It is always written inside the configured CCC output directory."),
     mode: z.enum(["draft", "final"]).default("draft"),
   },
   async (input) => {
-    const brief = createOnePagerBrief(input);
+    const { corrected, spelling } = correctOnePagerInput(input);
+    const workingFile = materializeOnePagerWorkingTemplate(corrected);
+    const brief = createOnePagerBrief({
+      ...corrected,
+      workingFilePath: workingFile.outputPath,
+      workingFileSha256: workingFile.sha256,
+    });
     return {
       content: [
-        { type: "text" as const, text: asText(brief) },
-        {
-          type: "resource_link" as const,
-          name: `${brief.template.id}-one-pager-source-svg`,
-          title: `Required clean CCC ${brief.template.label} working SVG`,
-          uri: brief.referenceResourceUri,
-          description: "Use this cleaned SVG directly. Its original copy and raster illustrations are already removed; do not merge it with the populated visual reference.",
-          mimeType: "image/svg+xml",
-        },
+        { type: "text" as const, text: asText({ ...brief, spelling, workingFile }) },
       ],
     };
   },
 );
 
 server.tool(
+  "validate_one_pager_file",
+  "Validate a completed CCC one-pager directly from its local workspace file path. The MCP reads the SVG server-side and returns only a compact validation report, avoiding truncation of large SVG or embedded-image payloads. This includes both strict one-pager and Adobe Illustrator validation.",
+  {
+    filePath: z.string().min(1).max(1000).describe("Absolute path or CCC-workspace-relative path to the completed SVG file."),
+    template: z.enum(onePagerTemplateIds).optional().describe("Expected locked one-pager template id."),
+    mode: z.enum(["draft", "final"]).default("final"),
+  },
+  async (input) => ({
+    content: [{ type: "text", text: asText(validateOnePagerFile(input)) }],
+  }),
+);
+
+server.tool(
   "validate_one_pager_svg",
-  "Validate a completed CCC one-pager SVG against the exact selected source template. Measures retained path/panel/divider/brush/connector geometry, then enforces the locked canvas, Anton/Montserrat/DM Mono/Hind type roles, contained text-safe boxes, 24-unit gutters, and three clean double-ended Illustrator-safe connectors. Metadata alone cannot satisfy this validator.",
+  "Compatibility validator for callers that already hold complete SVG markup. For normal one-pager workflows use validate_one_pager_file so large SVG and embedded-image payloads never pass through chat.",
   {
     svg: z.string().min(1).max(12_000_000).describe("Full standalone one-pager SVG markup."),
     template: z.enum(onePagerTemplateIds).optional().describe("Expected locked one-pager template id."),
@@ -334,7 +442,7 @@ server.tool(
 
 server.tool(
   "create_quote_post",
-  "Create a download-ready, Illustrator-safe SVG 1.1 CCC quote post for an approved team member. Keeps text and portrait in protected non-overlapping zones, scales portrait prominence proportionally to quote length, contains the full uncropped portrait, embeds it through xlink:href, keeps text editable with packaged installed fonts, verifies the name/title, and always applies Autumn Orange emphasis.",
+  "Correct and visibly report spelling issues in the supplied quote, then create a download-ready, Illustrator-safe SVG 1.1 CCC quote post for an approved team member using corrected text. Keeps text and portrait in protected non-overlapping zones, scales portrait prominence proportionally to quote length, contains the full uncropped portrait, embeds it through xlink:href, keeps text editable with packaged installed fonts, verifies the name/title, and always applies Autumn Orange emphasis.",
   {
     quote: z.string().min(1).max(150).describe("Exact quote text without surrounding quotation marks."),
     person: z.enum(quotePersonIds).describe("Approved quoted person. Read brand://ccc/quote-people when the user's name or role needs resolving."),
@@ -343,14 +451,17 @@ server.tool(
     assetBasePath: z.string().optional().describe("Optional asset directory containing the template, portraits, logo, and fonts."),
     mode: z.enum(["draft", "final"]).default("draft"),
   },
-  async (input) => ({
-    content: [{ type: "text", text: asText(createQuotePostSvg(input)) }],
-  }),
+  async (input) => {
+    const { corrected, spelling } = correctTextInput(input, ["quote", "emphasis"]);
+    return {
+      content: [{ type: "text", text: asText({ ...createQuotePostSvg(corrected), spelling }) }],
+    };
+  },
 );
 
 server.tool(
   "create_social_svg",
-  "Generate an Illustrator-safe SVG 1.1 CCC artwork from the reference-locked social templates. This is the only supported social-post renderer: never recreate its SVG through a legacy or freeform generator. Outputs use editable packaged CCC fonts, native unscaled headline glyphs, inline vector logos, and xlink:href for embedded rasters. Any PNG preview must be rendered with the packaged files in assets/fonts; never accept a system-font fallback preview. For template=quote, provide person and put the quote in headline; the generator uses reference 5 with a non-overlapping, uncropped, fully embedded approved portrait, verified attribution, and mandatory orange emphasis.",
+  "Correct and visibly report spelling issues in all supplied copy, then generate an Illustrator-safe SVG 1.1 CCC artwork from the reference-locked social templates using only corrected text. This is the only supported social-post renderer: never recreate its SVG through a legacy or freeform generator. Outputs use editable packaged CCC fonts, native unscaled headline glyphs, inline vector logos, and xlink:href for embedded rasters. Any PNG preview must be rendered with the packaged files in assets/fonts; never accept a system-font fallback preview. For template=quote, provide person and put the quote in headline; the generator uses reference 5 with a non-overlapping, uncropped, fully embedded approved portrait, verified attribution, and mandatory orange emphasis.",
   {
     template: z.enum(["policy_alert", "statistic", "quote", "cta", "lower_third"]).default("policy_alert"),
     styleVariant: z.enum(["auto", "navy_poster", "petition_push", "orange_alert", "statistic_card", "contrast_cards", "quote_post"]).default("auto").describe("Optional CCC guide variant. auto maps quote posts to quote_post, petition/lawmaker asks to petition_push, policy alerts to orange_alert, statistics to statistic_card, and most other posts to navy_poster."),
@@ -369,14 +480,26 @@ server.tool(
     assetBasePath: z.string().optional().describe("Optional asset directory used to verify officialLogoHref and default logo assets."),
     mode: z.enum(["draft", "final"]).default("draft"),
   },
-  async ({ template, styleVariant, headline, leadIn, kicker, body, cta, comparisonLeft, comparisonRight, person, emphasis, variation, includeLogoPlaceholder, officialLogoHref, assetBasePath, mode }) => ({
-    content: [
-      {
-        type: "text",
-        text: asText(createSocialSvg({ template, styleVariant, headline, leadIn, kicker, body, cta, comparisonLeft, comparisonRight, person, emphasis, variation, includeLogoPlaceholder, officialLogoHref, assetBasePath, mode })),
-      },
-    ],
-  }),
+  async (input) => {
+    const { corrected, spelling } = correctTextInput(input, [
+      "headline",
+      "leadIn",
+      "kicker",
+      "body",
+      "cta",
+      "comparisonLeft",
+      "comparisonRight",
+      "emphasis",
+    ]);
+    return {
+      content: [
+        {
+          type: "text",
+          text: asText({ ...createSocialSvg(corrected), spelling }),
+        },
+      ],
+    };
+  },
 );
 
 const transport = new StdioServerTransport();

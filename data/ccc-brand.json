@@ -17,6 +17,12 @@
       "audienceAppeal": "People who feel not represented, restricted, and ready for change."
     }
   },
+  "spelling": {
+    "languagePolicy": "Accept standard American and British English spellings.",
+    "generationPolicy": "Before every generation or copy-layout tool runs, detect likely spelling errors in user-supplied copy, return a visible correction notice, and use corrected copy in the generated prompt, brief, SVG, or QA result.",
+    "exceptions": "Do not flag CCC names, approved team-member names, policy terminology, acronyms, URLs, email addresses, filesystem paths, or configured domain terms.",
+    "outputContract": "Return original and corrected fields plus highlighted replacements in the spelling report whenever corrections are applied."
+  },
   "colors": {
     "primary": {
       "autumnOrange": "#E95C1F",
@@ -371,7 +377,7 @@
         "heightPx": 1535.49,
         "aspectRatio": "1186.51:1535.49"
       },
-      "referenceUsage": "The two populated one-pager SVGs are visual references only. Generated one-pagers must begin from the MCP-provided clean working shell, which removes all original text and raster images while preserving the reference canvas, section boundaries, coordinates, typography hierarchy, brush shapes, normalized arrows, card geometry, background mark, footer, and logo geometry.",
+      "referenceUsage": "The two populated one-pager SVGs are visual references only. create_one_pager materializes the selected clean working shell directly into the shared local workspace instead of transferring large SVG markup through chat. Generated one-pagers must edit that file in place; it removes all original text and raster images while preserving the reference canvas, section boundaries, coordinates, typography hierarchy, brush shapes, normalized arrows, card geometry, background mark, footer, and logo geometry.",
       "minimumGeometryRetention": 0.9,
       "templates": [
         {
@@ -408,7 +414,7 @@
         "central contextual object illustration and its supporting component/callout cutouts only"
       ],
       "illustrationRules": [
-        "Use only the clean working SVG returned by create_one_pager; never append new content to the populated visual reference.",
+        "Use only the clean working SVG file path materialized by create_one_pager; never request the full shell through an MCP text resource and never append new content to the populated visual reference.",
         "The clean shell must contain no original text or raster images, and the final file must preserve data-ccc-clean-template=\"mutable-content-cleared-v1\".",
         "Generate the physical object most directly connected to the policy context, not an abstract metaphor.",
         "Match the references' photorealistic editorial cutout/cutaway style on a transparent background with crisp edges.",
@@ -422,26 +428,58 @@
       "typographyContracts": {
         "material_cost_chain": {
           "displayTitle": "Anton Regular",
-          "componentHeadings": "Montserrat Bold",
-          "componentBody": "Montserrat SemiBold",
-          "statistics": "Anton Regular",
-          "labelsAndSources": "DM Mono Regular"
+          "componentHeadings": "Montserrat Bold Italic",
+          "componentBody": "Montserrat Medium or SemiBold according to the source slot",
+          "statistics": "Montserrat Bold Italic",
+          "labelsAndSources": "DM Mono Regular or Medium",
+          "typeRoles": {
+            "page-kicker": { "family": "DM Mono", "weight": "400", "style": "normal" },
+            "display-title": { "family": "Anton", "weight": "400", "style": "normal" },
+            "callout-title": { "family": "Montserrat", "weight": "700", "style": "italic" },
+            "callout-body": { "family": "Montserrat", "weight": "600", "style": "normal" },
+            "lead-stat": { "family": "Montserrat", "weight": "700", "style": "italic" },
+            "section-heading": { "family": "Montserrat", "weight": "700", "style": "italic" },
+            "evidence-number": { "family": "Montserrat", "weight": "700", "style": "italic" },
+            "evidence-body": { "family": "Montserrat", "weight": "500", "style": "normal" },
+            "takeaway-heading": { "family": "Montserrat", "weight": "700", "style": "normal" },
+            "takeaway-body": { "family": "Montserrat", "weight": "500", "style": "normal" },
+            "source": { "family": "DM Mono", "weight": "500", "style": "normal" }
+          }
         },
         "access_barriers": {
           "displayTitle": "Anton Regular",
-          "componentHeadings": "Montserrat Bold",
-          "componentBody": "Montserrat SemiBold",
-          "statistics": "Anton Regular",
-          "labelsAndSources": "DM Mono Regular"
+          "componentHeadings": "Montserrat Bold Italic",
+          "componentBody": "Montserrat Medium or SemiBold according to the source slot",
+          "statistics": "Montserrat Bold Italic",
+          "labelsAndSources": "DM Mono Regular or Medium",
+          "typeRoles": {
+            "page-kicker": { "family": "DM Mono", "weight": "400", "style": "normal" },
+            "display-title": { "family": "Anton", "weight": "400", "style": "normal" },
+            "callout-title": { "family": "Montserrat", "weight": "700", "style": "italic" },
+            "callout-body": { "family": "Montserrat", "weight": "600", "style": "normal" },
+            "lead-stat": { "family": "Montserrat", "weight": "700", "style": "italic" },
+            "section-heading": { "family": "Montserrat", "weight": "700", "style": "italic" },
+            "evidence-number": { "family": "Montserrat", "weight": "700", "style": "italic" },
+            "evidence-body": { "family": "Montserrat", "weight": "500", "style": "normal" },
+            "takeaway-heading": { "family": "Montserrat", "weight": "700", "style": "normal" },
+            "takeaway-body": { "family": "Montserrat", "weight": "500", "style": "normal" },
+            "source": { "family": "DM Mono", "weight": "500", "style": "normal" }
+          }
         }
+      },
+      "componentValidation": {
+        "minimumGutter": 16,
+        "overlapExemptComponentPairs": [
+          ["one-pager-sources", "one-pager-logo"]
+        ]
       },
       "componentLayoutRules": [
         "Use one font family and one weight consistently for every repeated component role.",
-        "Every text-bearing component must declare data-ccc-component, data-ccc-bounds, and data-ccc-text-inset.",
+        "Every text-bearing component must declare data-ccc-component, data-ccc-bounds, and data-ccc-text-inset. Insets may use standard one-, two-, three-, or four-value CSS shorthand and are normalized before validation.",
         "Every text-bearing component must also declare a measured data-ccc-text-safe-box contained inside its component bounds; text may not extend outside that box or into another component.",
         "Every visible text line must be a direct x/y-positioned text element inside a real data-ccc-component group; hidden placeholder roles, transformed text, tspans, textLength, and lengthAdjust are forbidden.",
         "The validator measures rendered text boxes and rejects text-to-text or text-to-illustration overlap even when component metadata claims the layout is safe.",
-        "Keep at least a 24-unit gutter between component bounds; components may not touch or overlap.",
+        "Keep the template-native component gutter, never less than 16 reference units. The source/footer logo relationship is the only declared overlap exemption.",
         "Align text to a shared inset and baseline grid inside each brush panel, card, callout, banner, and takeaway box.",
         "Build each connector as a tangent-aligned double-ended arrow: one clean 3-unit shaft, 6 7 dash rhythm, and two compact filled vector arrowheads that physically meet the shaft. Do not use SVG marker-start, marker-mid, or marker-end, and never cross a text-safe box."
       ]
@@ -684,6 +722,7 @@
     }
   },
   "strictGenerationRules": [
+    "Run deterministic spelling review on all user-supplied generation copy. Highlight every applied correction to the user and use only the corrected copy in generated outputs.",
     "Use only colors listed in this brand data.",
     "Use only listed typography families and weights.",
     "Use packaged official SVG logo assets by default; if unavailable, draft mode may leave a placeholder and final mode must fail validation.",
@@ -693,8 +732,8 @@
     "For petition, policymaker, lawmaker, mandate, and direct advocacy asks, default to petition_push or orange_alert rather than a generic navy poster.",
     "Vary social post layouts across navy poster, petition push, orange alert, statistic card, and compact contrast-card variants based on the message.",
     "Treat the packaged SVG post references as locked layout contracts: preserve coordinates, native display fonts, line rhythm, crop behavior, CCC mark geometry, icon paths, CTA placement, and logo usage while replacing the wording.",
-    "For one-pagers, call create_one_pager, open its linked source SVG, duplicate that exact file, and preserve at least 90% of its measured vector geometry; only replace fitted copy and the contextual central/supporting object illustrations.",
-    "Never validate an 1186.51x1535.49 one-pager only as a generic SVG artifact; it must pass validate_one_pager_svg, including source-template geometry retention.",
+    "For one-pagers, call create_one_pager and edit the returned materialized local workingFile.outputPath in place; never retrieve the complete shell or populated reference as SVG text through chat. Preserve at least 90% of its measured vector geometry and replace only fitted copy plus the contextual object illustration.",
+    "Never validate an 1186.51x1535.49 one-pager only as a generic SVG artifact or by transferring its markup through chat; its local file path must pass validate_one_pager_file, including source-template geometry retention and Illustrator compatibility.",
     "One-pager contextual objects must be photorealistic transparent-background editorial cutouts or cutaways, embedded in the SVG, contained inside the original illustration zones, and kept clear of every text region.",
     "Generate every social post through create_social_svg and require data-ccc-layout-lock=reference-exact; legacy or freeform social renderers are forbidden.",
     "Fit large social headlines into the native reference slots without SVG textLength, lengthAdjust, font-stretch, or non-uniform scale transforms; references 1, 2, 4, and 5 use Anton Regular, while reference 3 uses Montserrat Bold.",

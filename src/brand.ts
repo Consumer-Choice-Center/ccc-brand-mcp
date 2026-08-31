@@ -1,6 +1,7 @@
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 export type ValidationMode = "draft" | "final";
 export type FontCheck = { input: string; family?: string; weight?: string; ok: boolean; message?: string };
@@ -181,6 +182,87 @@ export function qaSocialLayout(input: { template: keyof typeof socialTemplates; 
 
 function getAssetBase(basePath?: string) {
   return basePath || process.env[brand.assets.assetBaseEnvironmentVariable] || resolve(__dirname, "..", brand.assets.defaultAssetDirectory);
+}
+
+function getWorkspaceBase(basePath?: string) {
+  return resolve(basePath || process.env.CCC_BRAND_WORKSPACE_DIR || resolve(__dirname, ".."));
+}
+
+function getOnePagerOutputBase(basePath?: string) {
+  if (basePath) return resolve(basePath);
+  if (process.env.CCC_BRAND_OUTPUT_DIR) return resolve(process.env.CCC_BRAND_OUTPUT_DIR);
+  return resolve(getWorkspaceBase(), "deliverables");
+}
+
+function isPathInside(root: string, target: string) {
+  const pathFromRoot = relative(root, target);
+  return pathFromRoot === "" || (!pathFromRoot.startsWith("..") && !isAbsolute(pathFromRoot));
+}
+
+function onePagerFileSlug(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 56) || "ccc-one-pager";
+}
+
+function onePagerFileIntegrity(svg: string) {
+  return {
+    bytes: Buffer.byteLength(svg, "utf8"),
+    sha256: createHash("sha256").update(svg, "utf8").digest("hex"),
+    completeSvg: svg.trimStart().startsWith("<svg") && svg.trimEnd().endsWith("</svg>"),
+  };
+}
+
+export function materializeOnePagerWorkingTemplate(input: {
+  request: string;
+  template?: OnePagerTemplateSelection;
+  headline?: string;
+  outputFileName?: string;
+  outputBasePath?: string;
+}) {
+  const template = selectOnePagerTemplate(input.request, input.template ?? "auto");
+  const working = getOnePagerWorkingTemplateAssets().find((entry) => entry.id === template.id);
+  if (!working?.svg) throw new Error(`Clean one-pager working template is unavailable for ${template.id}.`);
+  const requestHash = createHash("sha256").update(`${template.id}\n${input.request}`, "utf8").digest("hex").slice(0, 10);
+  const defaultName = `${onePagerFileSlug(input.headline?.trim() || input.request)}-${requestHash}-working.svg`;
+  const outputFileName = input.outputFileName?.trim() || defaultName;
+  if (basename(outputFileName) !== outputFileName || !/^[a-z0-9][a-z0-9._-]*\.svg$/i.test(outputFileName)) {
+    throw new Error("outputFileName must be a plain SVG file name using only letters, numbers, dots, underscores, or hyphens.");
+  }
+  const outputDirectory = getOnePagerOutputBase(input.outputBasePath);
+  const outputPath = resolve(outputDirectory, outputFileName);
+  if (!isPathInside(outputDirectory, outputPath)) throw new Error("Working one-pager path escaped the configured output directory.");
+  mkdirSync(outputDirectory, { recursive: true });
+  writeFileSync(outputPath, working.svg, { encoding: "utf8", mode: 0o644 });
+  const integrity = onePagerFileIntegrity(working.svg);
+  return {
+    ok: integrity.completeSvg,
+    templateId: template.id,
+    outputPath,
+    fileUri: pathToFileURL(outputPath).href,
+    ...integrity,
+    cleanTemplate: /data-ccc-clean-template=["']mutable-content-cleared-v1["']/i.test(working.svg),
+    sourceTextElements: (working.svg.match(/<text\b/gi) ?? []).length,
+    sourceImageElements: (working.svg.match(/<image\b/gi) ?? []).length,
+    connectors: (working.svg.match(/data-ccc-connector=["']shaft-arrowhead["']/gi) ?? []).length,
+  };
+}
+
+function readWorkspaceSvgFile(filePath: string, workspaceBasePath?: string) {
+  const workspaceRoot = getWorkspaceBase(workspaceBasePath);
+  const target = resolve(workspaceRoot, filePath);
+  if (!isPathInside(workspaceRoot, target)) throw new Error(`SVG file must remain inside the configured CCC workspace: ${workspaceRoot}.`);
+  if (!existsSync(target)) throw new Error(`SVG file does not exist: ${target}.`);
+  if (!/\.svg$/i.test(target)) throw new Error("CCC file validation accepts .svg files only.");
+  const stats = statSync(target);
+  if (!stats.isFile()) throw new Error(`SVG path is not a regular file: ${target}.`);
+  if (stats.size > 12_000_000) throw new Error(`SVG exceeds the 12 MB validation limit: ${stats.size} bytes.`);
+  const svg = readFileSync(target, "utf8");
+  return { path: target, svg, ...onePagerFileIntegrity(svg) };
 }
 
 function cleanAssetRef(ref: string) {
@@ -385,10 +467,59 @@ function svgFontFamilies(svg: string) {
   return [...families].filter(Boolean);
 }
 
+function canonicalOnePagerFontFamily(input?: string) {
+  const family = input?.trim().replace(/^['"]|['"]$/g, "") ?? "";
+  if (/^Anton(?:-Regular)?$/i.test(family)) return "Anton";
+  if (/^Montserrat(?:-(?:Regular|Italic|Medium|MediumItalic|SemiBold|Bold|BoldItalic|ExtraBoldItalic))?$/i.test(family)) return "Montserrat";
+  if (/^(?:DM\s*Mono|DMMono)(?:-(?:Regular|Medium|Light))?$/i.test(family)) return "DM Mono";
+  if (/^Hind(?:-Medium)?$/i.test(family)) return "Hind";
+  return family;
+}
+
+function canonicalOnePagerFontWeight(input?: string) {
+  const weight = (input ?? "400").trim().toLowerCase();
+  if (weight === "normal" || weight === "regular") return "400";
+  if (weight === "medium") return "500";
+  if (weight === "semibold" || weight === "semi-bold") return "600";
+  if (weight === "bold") return "700";
+  if (weight === "extrabold" || weight === "extra-bold") return "800";
+  return weight;
+}
+
+function onePagerVisibleFontFamilies(svg: string) {
+  const families = new Set<string>();
+  for (const match of svg.matchAll(/<text\b([^>]*)>/gi)) {
+    const familyList = attr(match[1], "font-family")?.split(",") ?? [];
+    for (const family of familyList) {
+      const canonical = canonicalOnePagerFontFamily(family);
+      if (canonical) families.add(canonical);
+    }
+  }
+  return [...families];
+}
+
 function svgColors(svg: string) {
   const values = new Set<string>();
   for (const pattern of [/\b(?:fill|stroke|stop-color)\s*=\s*["']([^"']+)["']/gi, /(?:fill|stroke|stop-color)\s*:\s*([^;"'}]+)/gi]) for (const match of svg.matchAll(pattern)) values.add(match[1].trim());
   return [...values].filter((color) => !["none", "transparent", "currentcolor"].includes(color.toLowerCase()) && !color.toLowerCase().startsWith("url("));
+}
+
+const onePagerReferencePaletteCache = new Map<OnePagerTemplateId, Set<string>>();
+
+function onePagerAllowedPalette(templateId?: OnePagerTemplateId) {
+  const official = new Set(colorEntries.map((entry) => entry.hex.toLowerCase()));
+  if (!templateId) return official;
+  const cached = onePagerReferencePaletteCache.get(templateId);
+  if (cached) return new Set([...official, ...cached]);
+  const template = onePagerTemplates.find((entry) => entry.id === templateId);
+  const referencePath = template ? resolve(getAssetBase(), template.referenceAsset) : undefined;
+  const referenceColors = new Set(
+    referencePath && existsSync(referencePath)
+      ? svgColors(readFileSync(referencePath, "utf8")).map((color) => color.toLowerCase())
+      : [],
+  );
+  onePagerReferencePaletteCache.set(templateId, referenceColors);
+  return new Set([...official, ...referenceColors]);
 }
 
 function svgLogoRefs(svg: string) {
@@ -681,7 +812,7 @@ export function validateOnePagerTemplateIntegrity(input: { svg: string; template
     referenceShapes,
     matchedShapes,
     retainedRatio: Math.round(retainedRatio * 10_000) / 10_000,
-    message: ok ? undefined : `One-pager does not retain enough geometry from ${template.referenceAsset}: ${Math.round(retainedRatio * 100)}% retained; at least ${Math.round(minimumRetention * 100)}% is required. Start from the linked SVG itself instead of recreating the page.`,
+    message: ok ? undefined : `One-pager does not retain enough geometry from ${template.referenceAsset}: ${Math.round(retainedRatio * 100)}% retained; at least ${Math.round(minimumRetention * 100)}% is required. Start from the materialized working SVG file instead of recreating the page.`,
   };
 }
 
@@ -693,12 +824,15 @@ export function createOnePagerBrief(input: {
   keyMessage?: string;
   sources?: string[];
   mode?: ValidationMode;
+  workingFilePath?: string;
+  workingFileSha256?: string;
 }) {
   const mode = input.mode ?? "draft";
   const template = selectOnePagerTemplate(input.request, input.template ?? "auto");
   const typographyContract = onePagerConfig.typographyContracts[template.id];
-  const referenceResourceUri = `brand://ccc/one-pager-working-templates/${template.referenceAsset.split("/").pop()}`;
-  const visualReferenceResourceUri = `brand://ccc/one-pager-references/${template.referenceAsset.split("/").pop()}`;
+  const typeRoleContract = Object.entries(typographyContract.typeRoles as Record<string, { family: string; weight: string; style: string }>)
+    .map(([role, spec]) => `${role}=${spec.family} ${spec.weight} ${spec.style}`)
+    .join("; ");
   const illustrationZone = onePagerIllustrationZones[template.id];
   const referencePath = resolve(getAssetBase(), template.referenceAsset);
   const referenceShapes = existsSync(referencePath) ? [...onePagerGeometryCounts(readFileSync(referencePath, "utf8")).values()].reduce((sum, count) => sum + count, 0) : 0;
@@ -712,13 +846,15 @@ export function createOnePagerBrief(input: {
   const prompt = [
     `Create one CCC policy one-pager using the strict ${template.id} reference template.`,
     `User request: ${input.request}`,
-    `Clean working SVG: ${referenceResourceUri}`,
-    `Populated visual reference (view only; never use as working artwork): ${visualReferenceResourceUri}`,
-    "Open the linked clean working SVG before writing or drawing anything. It already has every original text element and raster illustration removed. Never paste, merge, append, or layer new content over the populated visual reference.",
+    `Materialized clean working SVG file: ${input.workingFilePath || "call create_one_pager to materialize the file before editing"}`,
+    `Materialized shell SHA-256: ${input.workingFileSha256 || "returned by create_one_pager"}`,
+    `Populated visual reference local path (view only; never use as working artwork): ${referencePath}`,
+    "Never retrieve the working shell or populated visual reference as SVG text through an MCP resource reader: chat clients can truncate large XML payloads. Work on the materialized local file path with filesystem-native file operations.",
+    "The materialized working SVG already has every original text element and raster illustration removed. Never paste, merge, append, or layer new content over the populated visual reference.",
     `Canvas: ${onePagerConfig.canvas.viewBox} (${onePagerConfig.canvas.widthPx} x ${onePagerConfig.canvas.heightPx} reference units).`,
-    "Start from the supplied clean working SVG itself. Do not recreate, reinterpret, simplify, stretch, rearrange, or reintroduce deleted source copy or images.",
+    "Edit the materialized clean working SVG file in place. Do not recreate, reinterpret, simplify, stretch, rearrange, or reintroduce deleted source copy or images.",
     `Preserve the template's ${template.titleStyle}, navy/orange/warm-white color roles, section heights, headline origin, brush labels, arrows, dividers, cards, footer, source line, and logo geometry exactly.`,
-    `Typography contract: display title = ${typographyContract.displayTitle}; repeated component headings = ${typographyContract.componentHeadings}; repeated component body = ${typographyContract.componentBody}; statistics = ${typographyContract.statistics}; labels and sources = ${typographyContract.labelsAndSources}. Match the reference font style and size for every slot; never mix families, weights, styles, or sizes within a repeated component role.`,
+    `Typography contract: display title = ${typographyContract.displayTitle}; repeated component headings = ${typographyContract.componentHeadings}; repeated component body = ${typographyContract.componentBody}; statistics = ${typographyContract.statistics}; labels and sources = ${typographyContract.labelsAndSources}. Exact role map: ${typeRoleContract}. Use the PostScript font names from the supplied files when appropriate; the validator canonicalizes them to the listed CCC family. Match the reference size for every slot and never mix families, weights, styles, or sizes within a repeated component role.`,
     "The only illustration addition is one self-contained contextual object composite on a transparent background. The source house/AC and supporting raster cutouts have already been removed from the clean shell; never place them back.",
     `Central object: ${centralObject}.`,
     `Central illustration safe zone: x=${illustrationZone.x}, y=${illustrationZone.y}, width=${illustrationZone.width}, height=${illustrationZone.height}. Use one <image data-ccc-role="one-pager-central-illustration"> with those bounds as the maximum placement area, preserveAspectRatio="xMidYMid meet", and no crop. Text may not intersect this image box.`,
@@ -730,20 +866,22 @@ export function createOnePagerBrief(input: {
     "Add wording only inside explicit data-ccc-component groups. Every visible <text> must belong to one component, use direct x/y coordinates, and carry the real data-ccc-type-role on that visible text. Do not use orphan text, hidden labels, x=0/y=0 compliance placeholders, transforms, tspans, textLength, or lengthAdjust.",
     "Match the source line count, hierarchy, alignment, and approximate character density; shorten copy instead of moving elements or reducing type below the reference scale. Use one <text> element per line so every line can be measured independently.",
     "Required content structure: one dominant headline and deck; three policy callouts around the central object; one orange lead-stat brush panel; one dark bridge statement; the reference lower-section heading; three or four evidence cards according to the selected template; one bottom consumer-choice conclusion; source footer; official CCC logo.",
-    "Component alignment contract: every text-bearing group must declare data-ccc-component, data-ccc-bounds=\"x y width height\", data-ccc-text-inset, and a measured data-ccc-text-safe-box=\"x y width height\" contained inside its component bounds. Keep at least 24 reference units between repeated callout/card components. Use one shared left inset, top inset, baseline interval, font family, weight, style, and size for equivalent callouts or cards. The rendered bounds of every text line must remain inside its text-safe box, must not collide with another text line, and must not intersect the central illustration.",
+    `Component alignment contract: every text-bearing group must declare data-ccc-component, data-ccc-bounds="x y width height", data-ccc-text-inset, and a measured data-ccc-text-safe-box="x y width height" contained inside its component bounds. CSS-style one-, two-, three-, or four-value insets are accepted and normalized. Keep the template-native gutter, never less than ${Number(onePagerConfig.componentValidation?.minimumGutter ?? 16)} reference units. The source/footer logo relationship is the only declared overlap exemption. Use one shared left inset, top inset, baseline interval, font family, weight, style, and size for equivalent callouts or cards. The rendered bounds of every text line must remain inside its text-safe box, must not collide with another text line, and must not intersect the central illustration.`,
     "Arrow contract: the clean working SVG already contains exactly three normalized data-ccc-connector=\"shaft-arrowhead\" groups. Reuse and reposition those groups only when required by the new object; never add a second connector set. Each group must retain one visible 3-unit shaft with stroke-dasharray=\"6 7\" plus two compact filled arrowheads. Do not cross a text-safe box or use SVG markers.",
     `Headline: ${input.headline?.trim() || "write from the request"}`,
     `Closing takeaway: ${input.keyMessage?.trim() || "write from the request"}`,
     `Sources: ${sources.length ? sources.join(" • ") : "required before final output"}`,
-    `Preserve data-ccc-clean-template="mutable-content-cleared-v1", data-ccc-asset="one-pager", data-ccc-layout-lock="one-pager-reference-exact", data-ccc-template-source="${template.referenceAsset}", data-ccc-typography-contract="${template.id}-reference", data-ccc-component-grid="reference-spaced", the selected template id, and data-ccc-role markers for title, central illustration, callouts, lead statistic, evidence cards, takeaway, sources, and logo. Add data-ccc-type-role plus direct x, y, font-family, font-weight, font-style, and font-size attributes to every visible text line; do not rely on inherited or class-only declarations. Run validate_one_pager_svg and validate_illustrator_svg on the exact downloaded file; fix every violation before handoff. Generic validate_svg_artifact is not a substitute for the dedicated one-pager validator.`,
+    `Preserve data-ccc-clean-template="mutable-content-cleared-v1", data-ccc-asset="one-pager", data-ccc-layout-lock="one-pager-reference-exact", data-ccc-template-source="${template.referenceAsset}", data-ccc-typography-contract="${template.id}-reference", data-ccc-component-grid="reference-spaced", the selected template id, and data-ccc-role markers for title, central illustration, callouts, lead statistic, evidence cards, takeaway, sources, and logo. Add data-ccc-type-role plus direct x, y, font-family, font-weight, font-style, and font-size attributes to every visible text line; do not rely on inherited or class-only declarations. Run validate_one_pager_file on the exact materialized file path; it performs both dedicated one-pager and Illustrator validation without transferring the SVG through chat. Fix every violation before handoff. Generic validate_svg_artifact is not a substitute for the dedicated one-pager validator.`,
   ].join("\n");
   return {
     ok: violations.length === 0,
     mode,
     template,
     referenceAsset: template.referenceAsset,
-    referenceResourceUri,
-    visualReferenceResourceUri,
+    workingFilePath: input.workingFilePath,
+    workingFileSha256: input.workingFileSha256,
+    visualReferencePath: referencePath,
+    transportPolicy: "filesystem-materialized; never transfer full one-pager SVG markup through MCP text resources",
     templateIntegrity: {
       required: true,
       referenceShapes,
@@ -783,7 +921,7 @@ function onePagerTextRecords(svg: string): OnePagerTextRecord[] {
     const x = Number(attr(openingTag, "x"));
     const y = Number(attr(openingTag, "y"));
     const size = Number(attr(openingTag, "font-size")?.match(/[0-9.]+/)?.[0]);
-    const family = attr(openingTag, "font-family")?.split(",")[0]?.trim().replace(/^['"]|['"]$/g, "");
+    const family = canonicalOnePagerFontFamily(attr(openingTag, "font-family")?.split(",")[0]);
     const hasTransform = /\btransform\s*=/i.test(openingTag);
     const hasTspan = /<tspan\b/i.test(markup);
     let box: [number, number, number, number] | undefined;
@@ -804,6 +942,14 @@ function boxesIntersect(left: [number, number, number, number], right: [number, 
   return lx < rx + rw + gutter && lx + lw + gutter > rx && ly < ry + rh + gutter && ly + lh + gutter > ry;
 }
 
+function normalizeInsetValues(values: number[]) {
+  if (!values.length || values.length > 4 || !values.every(Number.isFinite)) return [];
+  if (values.length === 1) return [values[0], values[0], values[0], values[0]];
+  if (values.length === 2) return [values[0], values[1], values[0], values[1]];
+  if (values.length === 3) return [values[0], values[1], values[2], values[1]];
+  return values;
+}
+
 export function validateOnePagerSvg(input: { svg: string; template?: OnePagerTemplateId; mode?: ValidationMode }) {
   const mode = input.mode ?? "final";
   const violations: string[] = [];
@@ -812,8 +958,9 @@ export function validateOnePagerSvg(input: { svg: string; template?: OnePagerTem
   const viewBox = rootTag.match(/\bviewBox\s*=\s*["']([^"']+)["']/i)?.[1]?.trim().replace(/\s+/g, " ");
   const templateId = input.svg.match(/data-ccc-one-pager-template=["'](material_cost_chain|access_barriers)["']/i)?.[1] as OnePagerTemplateId | undefined;
   const colors = svgColors(input.svg);
-  const offPaletteColors = colors.filter((color) => !resolveColor(color));
-  const fontFamilies = svgFontFamilies(input.svg);
+  const allowedPalette = onePagerAllowedPalette(templateId ?? input.template);
+  const offPaletteColors = colors.filter((color) => !allowedPalette.has(color.toLowerCase()));
+  const fontFamilies = onePagerVisibleFontFamilies(input.svg);
   const allowedReferenceFamilies = new Set(["Montserrat", "Anton", "DM Mono", "Hind"]);
   const offReferenceFonts = fontFamilies.filter((family) => !allowedReferenceFamilies.has(family));
   const images = [...input.svg.matchAll(/<image\b[^>]*(?:href|xlink:href)\s*=\s*["']([^"']+)["'][^>]*>/gi)].map((match) => match[1]);
@@ -828,19 +975,8 @@ export function validateOnePagerSvg(input: { svg: string; template?: OnePagerTem
   const typographyContract = input.svg.match(/data-ccc-typography-contract=["']([^"']+)["']/i)?.[1];
   const componentGrid = /data-ccc-component-grid=["']reference-spaced["']/i.test(input.svg);
   const cleanTemplate = /data-ccc-clean-template=["']mutable-content-cleared-v1["']/i.test(rootTag);
-  const expectedTypeSpecs: Record<string, { family: string; weight: string; style: "normal" | "italic" }> = {
-    "page-kicker": { family: "DM Mono", weight: "400", style: "normal" },
-    "display-title": { family: "Anton", weight: "400", style: "normal" },
-    "callout-title": { family: "Montserrat", weight: "700", style: "italic" },
-    "callout-body": { family: "Montserrat", weight: "600", style: "normal" },
-    "lead-stat": { family: "Anton", weight: "400", style: "normal" },
-    "section-heading": { family: "Montserrat", weight: "800", style: "italic" },
-    "evidence-number": { family: "Anton", weight: "400", style: "normal" },
-    "evidence-body": { family: "Montserrat", weight: "600", style: "normal" },
-    "takeaway-heading": { family: "Montserrat", weight: "700", style: "normal" },
-    "takeaway-body": { family: "Montserrat", weight: "400", style: "normal" },
-    source: { family: "DM Mono", weight: "400", style: "normal" },
-  };
+  const roleContractId = templateId ?? input.template ?? "material_cost_chain";
+  const expectedTypeSpecs = onePagerConfig.typographyContracts[roleContractId].typeRoles as Record<string, { family: string; weight: string; style: "normal" | "italic" }>;
   const componentBlocks = [...input.svg.matchAll(/(<g\b[^>]*data-ccc-component=["']([^"']+)["'][^>]*>[\s\S]*?<\/g>)/gi)].map((match) => ({ markup: match[1], id: match[2], openingTag: match[1].match(/^<g\b[^>]*>/i)?.[0] ?? "" }));
   const textRecords = onePagerTextRecords(input.svg);
   const orphanText = textRecords.filter((record) => !componentBlocks.some((component) => component.markup.includes(record.markup)));
@@ -853,15 +989,15 @@ export function validateOnePagerSvg(input: { svg: string; template?: OnePagerTem
   for (const [role, expected] of Object.entries(expectedTypeSpecs)) {
     const entries = typeTags.filter((entry) => entry.role === role);
     if (!entries.length) continue;
-    const families = new Set(entries.map((entry) => attr(entry.tag, "font-family")?.split(",")[0]?.trim().replace(/^['"]|['"]$/g, "")));
-    const weights = new Set(entries.map((entry) => (attr(entry.tag, "font-weight") ?? "400").toLowerCase()));
+    const families = new Set(entries.map((entry) => canonicalOnePagerFontFamily(attr(entry.tag, "font-family")?.split(",")[0])));
+    const weights = new Set(entries.map((entry) => canonicalOnePagerFontWeight(attr(entry.tag, "font-weight"))));
     const styles = new Set(entries.map((entry) => (attr(entry.tag, "font-style") ?? "normal").toLowerCase()));
     const sizes = new Set(entries.map((entry) => attr(entry.tag, "font-size")?.trim().toLowerCase().replace(/px$/, "")));
     if ([...families].some((family) => family !== expected.family) || families.size !== 1 || [...weights].some((weight) => weight !== expected.weight) || weights.size !== 1 || [...styles].some((style) => style !== expected.style) || styles.size !== 1 || sizes.has(undefined) || sizes.size !== 1) inconsistentTypeRoles.push(role);
   }
   const componentTags = [...input.svg.matchAll(/<g\b[^>]*data-ccc-component=["']([^"']+)["'][^>]*>/gi)].map((match) => {
     const bounds = attr(match[0], "data-ccc-bounds")?.split(/\s+/).map(Number) ?? [];
-    const insets = attr(match[0], "data-ccc-text-inset")?.split(/\s+/).map(Number) ?? [];
+    const insets = normalizeInsetValues(attr(match[0], "data-ccc-text-inset")?.split(/\s+/).map(Number) ?? []);
     const textSafeBounds = attr(match[0], "data-ccc-text-safe-box")?.split(/\s+/).map(Number) ?? [];
     return { id: match[1], tag: match[0], bounds, insets, textSafeBounds };
   });
@@ -873,6 +1009,11 @@ export function validateOnePagerSvg(input: { svg: string; template?: OnePagerTem
     return textX < x || textY < y || textX + textWidth > x + width || textY + textHeight > y + height;
   }).map((entry) => entry.id);
   const crowdedComponents: string[] = [];
+  const minimumComponentGutter = Number(onePagerConfig.componentValidation?.minimumGutter ?? 16);
+  const exemptComponentPairs = new Set(
+    (onePagerConfig.componentValidation?.overlapExemptComponentPairs ?? [])
+      .map((pair: string[]) => [...pair].sort().join("/")),
+  );
   for (let leftIndex = 0; leftIndex < componentTags.length; leftIndex += 1) {
     const left = componentTags[leftIndex];
     if (left.bounds.length !== 4) continue;
@@ -880,12 +1021,13 @@ export function validateOnePagerSvg(input: { svg: string; template?: OnePagerTem
     for (let rightIndex = leftIndex + 1; rightIndex < componentTags.length; rightIndex += 1) {
       const right = componentTags[rightIndex];
       if (right.bounds.length !== 4) continue;
+      if (exemptComponentPairs.has([left.id, right.id].sort().join("/"))) continue;
       const [rx, ry, rw, rh] = right.bounds;
       const xOverlap = Math.min(lx + lw, rx + rw) - Math.max(lx, rx);
       const yOverlap = Math.min(ly + lh, ry + rh) - Math.max(ly, ry);
       const horizontalGap = Math.max(rx - (lx + lw), lx - (rx + rw));
       const verticalGap = Math.max(ry - (ly + lh), ly - (ry + rh));
-      if ((xOverlap > 0 && yOverlap > 0) || (yOverlap > 0 && horizontalGap >= 0 && horizontalGap < 24) || (xOverlap > 0 && verticalGap >= 0 && verticalGap < 24)) crowdedComponents.push(`${left.id}/${right.id}`);
+      if ((xOverlap > 0 && yOverlap > 0) || (yOverlap > 0 && horizontalGap >= 0 && horizontalGap < minimumComponentGutter) || (xOverlap > 0 && verticalGap >= 0 && verticalGap < minimumComponentGutter)) crowdedComponents.push(`${left.id}/${right.id}`);
     }
   }
   const textOutsideSafeBoxes: string[] = [];
@@ -949,7 +1091,7 @@ export function validateOnePagerSvg(input: { svg: string; template?: OnePagerTem
   if (textCollisions.length) severityPush(mode, violations, warnings, `Rendered text lines overlap: ${[...new Set(textCollisions)].slice(0, 12).join(", ")}.`);
   if (centralIllustrationTags.length !== 1 || badCentralIllustrations.length) severityPush(mode, violations, warnings, `One-pager must contain exactly one uncropped central illustration inside the selected template safe zone using preserveAspectRatio=\"xMidYMid meet\"${illustrationZone ? ` (${illustrationZone.x} ${illustrationZone.y} ${illustrationZone.width} ${illustrationZone.height})` : ""}.`);
   if (textIllustrationCollisions.length) severityPush(mode, violations, warnings, `Central illustration overlaps text: ${[...new Set(textIllustrationCollisions)].slice(0, 12).join(", ")}. Resize or reposition the illustration inside its safe zone.`);
-  if (crowdedComponents.length) severityPush(mode, violations, warnings, `One-pager components overlap or have less than the 24-unit reference gutter: ${[...new Set(crowdedComponents)].join(", ")}.`);
+  if (crowdedComponents.length) severityPush(mode, violations, warnings, `One-pager components overlap or have less than the ${minimumComponentGutter}-unit template gutter: ${[...new Set(crowdedComponents)].join(", ")}.`);
   if (connectorBlocks.length !== 3 || badConnectors.length) severityPush(mode, violations, warnings, "One-pager must include exactly three clean Illustrator-safe connector groups, each built from one 3-unit shaft with a 6 7 dash rhythm plus two compact vector arrowheads. SVG marker-only, detached, oversized, or inconsistent arrows are not accepted.");
   if (/\bmarker-(?:start|mid|end)\s*=/i.test(input.svg)) severityPush(mode, violations, warnings, "One-pager connectors must not rely on SVG markers; Illustrator can import the arrowhead without its guide line. Use explicit shaft and arrowhead geometry.");
   if (!hasPaletteAnchors || offPaletteColors.length) severityPush(mode, violations, warnings, `One-pager must preserve the CCC navy/orange/warm-white palette${offPaletteColors.length ? `; off-palette colors: ${offPaletteColors.join(", ")}` : ""}.`);
@@ -959,6 +1101,47 @@ export function validateOnePagerSvg(input: { svg: string; template?: OnePagerTem
   violations.push(...illustratorCompatibility.violations);
   warnings.push(...illustratorCompatibility.warnings);
   return { ok: violations.length === 0, mode, violations, warnings, templateId, viewBox, colors, fontFamilies, images: images.length, hasEmbeddedImages, hasPaletteAnchors, locked, cleanTemplate, legacyReferenceText: legacyReferenceText.length, retainedSourceImages, templateIntegrity, missingRoles, illustratorCompatibility, typographyContract, missingTypeRoles, inconsistentTypeRoles, componentGrid, components: componentTags.length, malformedComponents, unsafeTextComponents, orphanText: orphanText.length, unmeasurableText: unmeasurableText.length, placeholderText: placeholderText.length, textOutsideSafeBoxes: [...new Set(textOutsideSafeBoxes)], textCollisions: [...new Set(textCollisions)], centralIllustrations: centralIllustrationTags.length, badCentralIllustrations: badCentralIllustrations.length, textIllustrationCollisions: [...new Set(textIllustrationCollisions)], crowdedComponents: [...new Set(crowdedComponents)], connectors: connectorBlocks.length, badConnectors: badConnectors.length };
+}
+
+export function validateOnePagerFile(input: {
+  filePath: string;
+  template?: OnePagerTemplateId;
+  mode?: ValidationMode;
+  workspaceBasePath?: string;
+}) {
+  const mode = input.mode ?? "final";
+  try {
+    const file = readWorkspaceSvgFile(input.filePath, input.workspaceBasePath);
+    const onePager = validateOnePagerSvg({ svg: file.svg, template: input.template, mode });
+    const illustrator = validateIllustratorSvg({ svg: file.svg, mode });
+    return {
+      ok: onePager.ok && illustrator.ok && file.completeSvg,
+      mode,
+      file: {
+        path: file.path,
+        bytes: file.bytes,
+        sha256: file.sha256,
+        completeSvg: file.completeSvg,
+      },
+      onePager,
+      illustrator,
+      violations: [...new Set([
+        ...(file.completeSvg ? [] : ["File is not a complete standalone SVG ending in </svg>."]),
+        ...onePager.violations,
+        ...illustrator.violations,
+      ])],
+      warnings: [...new Set([...onePager.warnings, ...illustrator.warnings])],
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      ok: false,
+      mode,
+      file: { path: input.filePath },
+      violations: [message],
+      warnings: [],
+    };
+  }
 }
 
 export function createGenerationPrompt(input: { request: string; outputType: "social_post" | "one_pager" | "video_graphic" | "policy_document" | "website_section" | "ad" | "general"; includeNegativePrompt: boolean }) {
