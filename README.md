@@ -159,7 +159,7 @@ docker compose -f deploy/docker-compose.yml build
 docker compose -f deploy/docker-compose.yml up -d
 ```
 
-Production automation publishes immutable commit-SHA tags to `ghcr.io/consumer-choice-center/ccc-brand-mcp` and deploys only after the `CI` workflow succeeds on `main`. See `deploy/README.md` for bootstrap, secrets, health checks, and rollback.
+Deployment is manual: `git pull` and rebuild on the server. GitHub only runs CI (build, typecheck, test, smoke, audit) and has no access to the server. See `deploy/README.md` for bootstrap, redeploying, health checks, and rollback.
 
 ## Resources
 
