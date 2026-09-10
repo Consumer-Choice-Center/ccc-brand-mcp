@@ -1,0 +1,56 @@
+services:
+  ccc-brand-mcp:
+    image: ${CCC_BRAND_MCP_IMAGE:-ccc-brand-mcp:local}
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: ccc-brand-mcp
+    command: ["node", "dist/http-server.js"]
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    mem_limit: 384m
+    cpus: 1.0
+    pids_limit: 128
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    expose:
+      - "8080"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 8080
+      CCC_MCP_ALLOWED_HOSTS: mcp.consumerchoicecenter.org,ccc-brand-mcp,localhost,127.0.0.1
+      CCC_MCP_HTTP_BODY_LIMIT: 16mb
+      CCC_MCP_RATE_LIMIT_MAX: 120
+      CCC_MCP_MAX_CONCURRENCY: 20
+      CCC_MCP_REQUEST_TIMEOUT_MS: 30000
+      CCC_MCP_HEADERS_TIMEOUT_MS: 15000
+      CCC_MCP_KEEP_ALIVE_TIMEOUT_MS: 5000
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          require('http').get('http://127.0.0.1:8080/healthz',
+          {headers:{host:'127.0.0.1'}},r=>process.exit(r.statusCode===200?0:1))
+          .on('error',()=>process.exit(1))
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    networks:
+      - archivebox_default
+
+networks:
+  archivebox_default:
+    external: true

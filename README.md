@@ -53,7 +53,7 @@ pnpm start
 
 ## MCP Client Configuration
 
-Use this with Claude Desktop, Cursor, Codex, or any MCP-capable client:
+Use this with Cursor, Codex, or any MCP-capable client:
 
 ```json
 {
@@ -72,9 +72,39 @@ For local development, rebuild after changes and point the client at `dist/serve
 pnpm run build
 ```
 
+## Remote HTTP mode
+
+The shared CCC deployment uses stateless MCP Streamable HTTP:
+
+```bash
+pnpm run build
+pnpm run start:http
+```
+
+The production connector URL is:
+
+```text
+https://mcp.consumerchoicecenter.org/mcp
+```
+
+`GET /healthz` is available for infrastructure health checks. The HTTP server is intended to run behind a trusted HTTPS reverse proxy. It does not enable browser CORS because hosted MCP connectors call it server-to-server.
+
+The public remote endpoint deliberately exposes only the stateless, non-file-writing tool surface. `create_one_pager` and `validate_one_pager_file` remain available through local stdio only because they require a shared local filesystem. Remote schemas also omit `basePath` and `assetBasePath`; the server always uses its bundled read-only assets.
+
+The HTTP runtime supports these optional controls:
+
+- `PORT` and `HOST`
+- `CCC_MCP_ALLOWED_HOSTS` — comma-separated Host header allowlist
+- `CCC_MCP_HTTP_BODY_LIMIT` — defaults to `16mb` for full SVG validation
+- `CCC_MCP_RATE_LIMIT_MAX` — requests per IP per minute, defaults to `120`
+- `CCC_MCP_MAX_CONCURRENCY` — simultaneous MCP requests, defaults to `20`
+- `CCC_MCP_REQUEST_TIMEOUT_MS`, `CCC_MCP_HEADERS_TIMEOUT_MS`, and `CCC_MCP_KEEP_ALIVE_TIMEOUT_MS`
+
+The initial CCC endpoint is unauthenticated. Do not add tools that write files, accept arbitrary server paths, access private data, or mutate external systems to the remote allowlist without first adding authentication and tenant isolation.
+
 ## Server Deployment
 
-This is a stdio MCP server, not an HTTP service. It does not open a TCP port or run as a conventional web daemon. The MCP client starts the process and communicates over standard input/output. On a remote server, use a dedicated SSH account or run the container through SSH.
+This package supports two transports: local stdio and stateless Streamable HTTP. Local clients start `dist/server.js` and communicate over standard input/output. Shared hosted connectors use `dist/http-server.js` through an HTTPS reverse proxy.
 
 ### Deploy from the repository
 
@@ -121,6 +151,15 @@ docker run --rm -i -v ccc-brand-output:/app/deliverables ccc-brand-mcp:0.8.1
 ```
 
 The `-i` flag is required for MCP stdio. Keep the output volume so generated deliverables survive container removal. A remote client can use the same `ssh` configuration pattern with the `docker run --rm -i ...` command as the remote command.
+
+For the shared Streamable HTTP service, use the hardened Compose definition in `deploy/docker-compose.yml`. It runs `dist/http-server.js` as an unprivileged process with a read-only filesystem, joins the existing external Caddy network, and does not publish a host port:
+
+```bash
+docker compose -f deploy/docker-compose.yml build
+docker compose -f deploy/docker-compose.yml up -d
+```
+
+Production automation publishes immutable commit-SHA tags to `ghcr.io/consumer-choice-center/ccc-brand-mcp` and deploys only after the `CI` workflow succeeds on `main`. See `deploy/README.md` for bootstrap, secrets, health checks, and rollback.
 
 ## Resources
 
