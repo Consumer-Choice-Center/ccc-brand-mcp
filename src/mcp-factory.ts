@@ -369,17 +369,21 @@ server.tool(
 
 server.tool(
   "qa_social_layout",
-  "Correct and visibly report spelling issues, then check whether the corrected social or lower-third copy fits CCC layout limits before generating SVG.",
+  "Correct and visibly report spelling issues, then check whether the corrected social or lower-third copy fits CCC layout limits before generating SVG. For templates that resolve to the navy_poster guide style, the headline is measured against the same real packaged-font metrics and locked reference slot create_social_svg renders with, so this reports the exact line breaks, font size, and fit the SVG will use.",
   {
     template: z.enum(["policy_alert", "statistic", "quote", "cta", "lower_third"]).default("policy_alert"),
     headline: z.string().min(1).max(240),
+    kicker: z.string().max(40).optional().describe("Optional lead label; only affects which CCC guide style variant this headline is measured against."),
     body: z.string().max(500).optional(),
     cta: z.string().max(160).optional(),
     mode: z.enum(["draft", "final"]).default("final"),
+    ...(mode === "stdio" ? {
+      assetBasePath: z.string().optional().describe("Optional asset directory containing the packaged fonts used to measure the headline."),
+    } : {}),
   },
   readOnlyAnnotations,
   async (input) => {
-    const { corrected, spelling } = correctTextInput(input, ["headline", "body", "cta"]);
+    const { corrected, spelling } = correctTextInput(input, ["headline", "kicker", "body", "cta"]);
     return {
       content: [{ type: "text", text: asText({ ...qaSocialLayout(corrected), spelling }) }],
     };
@@ -388,7 +392,7 @@ server.tool(
 
 server.tool(
   "validate_svg_artifact",
-  "Validate a generated SVG artifact against CCC brand rules and the Illustrator-safe SVG 1.1 export contract, including approved fonts, palette discipline, social dimensions, embedded raster compatibility, and official logo usage.",
+  "Validate a generated SVG artifact against CCC brand rules and the Illustrator-safe SVG 1.1 export contract, including approved fonts, palette discipline, social dimensions, embedded raster compatibility, official logo usage, and reference-1 (navy_poster) headline text overflow measured from real packaged font metrics (textOverflow/overflowElements; other reference systems report textOverflowChecked: false rather than a false-negative pass).",
   {
     svg: z.string().min(1).max(4_000_000).describe("Full standalone SVG markup to validate."),
     assetType: z.enum(["social", "video", "other"]).default("social"),

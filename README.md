@@ -325,6 +325,8 @@ Checks whether required CCC logo and font assets are available. By default it ch
 
 Corrects and reports spelling issues, then checks the corrected headline, body, and CTA copy against CCC social layout limits before generation. In `final` mode, over-limit copy is a validation error; in `draft` mode, it is reported as a warning.
 
+For headlines that resolve to the `navy_poster` guide style, the headline is measured against the real packaged Anton font metrics and the locked reference-1 headline slot — the exact same layout `create_social_svg` renders with, so this call reports the true line breaks, font size, and fit in advance. Other guide styles still use the character-count heuristic.
+
 ### `validate_svg_artifact`
 
 Validates generated SVG markup after another LLM or design agent produces it. Use this as the final gate before accepting CCC-branded SVG output.
@@ -343,6 +345,7 @@ It checks:
 - official logo asset references
 - placeholder logo text or improvised logo marks
 - Illustrator-safe SVG 1.1 metadata, `xlink:href` raster embedding, installed editable fonts, inline vector logos, and absence of live SVG filters
+- for `reference-1` (`navy_poster`) output, headline text overflowing its locked slot, measured from the real packaged Anton font metrics (`textOverflow`, `overflowElements`); other reference systems report `textOverflowChecked: false` rather than a false-negative pass
 
 ### `validate_illustrator_svg`
 

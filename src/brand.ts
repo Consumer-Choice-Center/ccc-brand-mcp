@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { layoutHeadline, type HeadlineSlot } from "./headline-layout.js";
+import { measureTextWidthPx } from "./font-metrics.js";
 
 export type ValidationMode = "draft" | "final";
 export type FontCheck = { input: string; family?: string; weight?: string; ok: boolean; message?: string };
@@ -160,28 +162,86 @@ function analyzeCopy(text: string | undefined, maxChars: number, maxLines: numbe
   return { lines: allLines.slice(0, maxLines), allLineCount: allLines.length, omittedLines: allLines.slice(maxLines), maxChars, maxLines, longWords, overLimit: allLines.length > maxLines || longWords.length > 0 };
 }
 
-export function qaSocialLayout(input: { template: keyof typeof socialTemplates; headline: string; body?: string; cta?: string; mode: ValidationMode }) {
+export function qaSocialLayout(input: { template: keyof typeof socialTemplates; headline: string; kicker?: string; body?: string; cta?: string; mode: ValidationMode; assetBasePath?: string }) {
   const rules = brand.visualSystem.socialPosts;
   const isLowerThird = input.template === "lower_third";
   const isQuote = input.template === "quote";
-  const headline = analyzeCopy(
-    input.headline,
-    isLowerThird ? 34 : isQuote ? 22 : rules.headlineMaxCharactersPerLine,
-    isQuote ? quotePostConfig.quoteMaxLines : rules.maxHeadlineLines,
-  );
-  const body = analyzeCopy(input.body, isLowerThird ? 68 : rules.bodyMaxCharactersPerLine, rules.maxBodyLines);
-  const cta = analyzeCopy(input.cta ?? brand.social.requiredFooter, rules.ctaMaxCharactersPerLine, 1);
   const violations: string[] = [];
   const warnings: string[] = [];
-  if (headline.overLimit) severityPush(input.mode, violations, warnings, "Headline exceeds CCC social layout limits and may be clipped or overcrowded.");
+
+  // The style variant create_social_svg would auto-select for this same input, so QA can
+  // measure a headline against the exact reference slot the renderer will actually use.
+  const styleVariant = isLowerThird ? undefined : selectSocialStyleVariant(input);
+  const measuredLayout = styleVariant ? resolveHeadlineLayout(styleVariant, input.headline, input.assetBasePath) : undefined;
+
+  const headline = measuredLayout
+    ? {
+        lines: measuredLayout.lines.map((line) => line.text),
+        maxLines: HEADLINE_SLOTS.navy_poster.maxLines,
+        fontSizePx: measuredLayout.fontSizePx,
+        lineWidthsPx: measuredLayout.lines.map((line) => Math.round(line.widthPx * 100) / 100),
+        slotWidthPx: measuredLayout.slotWidthPx,
+        slotHeightPx: measuredLayout.slotHeightPx,
+        fits: measuredLayout.fits,
+        overflowReason: measuredLayout.overflowReason,
+        overLimit: !measuredLayout.fits,
+      }
+    : analyzeCopy(
+        input.headline,
+        isLowerThird ? 34 : isQuote ? 22 : rules.headlineMaxCharactersPerLine,
+        isQuote ? quotePostConfig.quoteMaxLines : rules.maxHeadlineLines,
+      );
+  const body = analyzeCopy(input.body, isLowerThird ? 68 : rules.bodyMaxCharactersPerLine, rules.maxBodyLines);
+  const cta = analyzeCopy(input.cta ?? brand.social.requiredFooter, rules.ctaMaxCharactersPerLine, 1);
+  if (headline.overLimit) severityPush(input.mode, violations, warnings, measuredLayout && !measuredLayout.fits ? (measuredLayout.overflowReason ?? "Headline does not fit its locked reference slot.") : "Headline exceeds CCC social layout limits and may be clipped or overcrowded.");
   if (isQuote && input.headline.trim().length > quotePostConfig.quoteMaxCharacters) severityPush(input.mode, violations, warnings, `Quote exceeds the ${quotePostConfig.quoteMaxCharacters}-character quote-template limit.`);
   if (body.overLimit) severityPush(input.mode, violations, warnings, "Body copy exceeds CCC social layout limits and may be clipped or overcrowded.");
   if (!isLowerThird && cta.overLimit) severityPush(input.mode, violations, warnings, "CTA/footer exceeds the one-line footer limit.");
-  return { ok: violations.length === 0, violations, warnings, headline, body, cta };
+  return { ok: violations.length === 0, violations, warnings, headline, body, cta, styleVariant };
 }
 
 function getAssetBase(basePath?: string) {
   return basePath || process.env[brand.assets.assetBaseEnvironmentVariable] || resolve(__dirname, "..", brand.assets.defaultAssetDirectory);
+}
+
+function getHeadlineFontDir(basePath?: string) {
+  return resolve(getAssetBase(basePath), "fonts");
+}
+
+/**
+ * Reference-locked headline slot geometry, in the native viewBox units of each
+ * ccc-post-reference-*.svg (not final output pixels). Both qa_social_layout and
+ * create_social_svg resolve a headline through the same layoutHeadline() call
+ * against these slots so they can never disagree about line breaks or fit.
+ *
+ * Currently only reference-1 (navy_poster) is covered; the other reference
+ * systems still use their original heuristic wrapping.
+ */
+const HEADLINE_SLOTS = {
+  navy_poster: {
+    referenceSystem: "reference-1",
+    fontFile: "Anton-Regular.ttf",
+    xPx: 19.57,
+    firstLineYPx: 147.7,
+    lineHeightPx: 76.69,
+    maxLines: 4,
+    // ccc-post-reference-1.svg's viewBox is 385.85 units wide. The template has no explicit
+    // right-edge guide, so the right margin mirrors the left margin (19.57, matching the
+    // kicker/footer left edge) for a symmetric "edge-to-edge" headline block.
+    slotWidthPx: 385.85 - 19.57 * 2,
+    // Keeps the last line's descender clear of the footer baseline at y=452.02.
+    slotBottomPx: 430,
+    baseFontSizePx: 71.54,
+    minFontSizePx: 71.54 * 0.76,
+  } satisfies HeadlineSlot,
+} as const;
+
+function resolveHeadlineLayout(variant: Exclude<SocialStyleVariant, "auto">, headline: string, assetBasePath?: string) {
+  const slot = (HEADLINE_SLOTS as Record<string, HeadlineSlot>)[variant];
+  if (!slot) return undefined;
+  const fontDir = getHeadlineFontDir(assetBasePath);
+  if (!existsSync(resolve(fontDir, slot.fontFile))) return undefined; // caller falls back; missingRenderFonts already reports this
+  return layoutHeadline(headline, slot, fontDir);
 }
 
 function getWorkspaceBase(basePath?: string) {
@@ -554,6 +614,41 @@ function referenceHeadlineStyles(svg: string) {
   return svgTextStyles(block);
 }
 
+function unescapeXml(value: string) {
+  return value.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&quot;", '"').replaceAll("&apos;", "'").replaceAll("&amp;", "&");
+}
+
+function referenceHeadlineTextLines(svg: string) {
+  const block = svg.match(/<g\b[^>]*data-ccc-role=["']reference-headline["'][^>]*>[\s\S]*?<\/g>/i)?.[0] ?? "";
+  return [...block.matchAll(/<text\b([^>]*)>([^<]*)<\/text>/gi)].map((match) => ({
+    text: unescapeXml(match[2]),
+    fontSizePx: Number(attr(match[1], "font-size")?.match(/[0-9.]+/)?.[0]),
+  }));
+}
+
+/**
+ * Measures each reference-headline line against its locked slot using the same real font
+ * metrics create_social_svg lays text out with. Only reference-1 (navy_poster) has a
+ * configured slot today; other reference systems report `checked: false` rather than a
+ * false-negative "no overflow" verdict.
+ */
+function checkHeadlineTextOverflow(svg: string, referenceSystem: string | undefined, assetBasePath?: string) {
+  const tolerancePx = 2;
+  if (referenceSystem !== "reference-1") return { checked: false, overflow: false, elements: [] as Array<{ text: string; widthPx: number; allowedWidthPx: number }> };
+  const slot = HEADLINE_SLOTS.navy_poster;
+  const fontDir = getHeadlineFontDir(assetBasePath);
+  if (!existsSync(resolve(fontDir, slot.fontFile))) return { checked: false, overflow: false, elements: [] as Array<{ text: string; widthPx: number; allowedWidthPx: number }> };
+  const elements = referenceHeadlineTextLines(svg)
+    .filter((line) => Number.isFinite(line.fontSizePx) && line.text.trim().length > 0)
+    .map((line) => ({
+      text: line.text,
+      widthPx: Math.round(measureTextWidthPx(fontDir, slot.fontFile, line.text, line.fontSizePx) * 100) / 100,
+      allowedWidthPx: slot.slotWidthPx,
+    }))
+    .filter((entry) => entry.widthPx > entry.allowedWidthPx + tolerancePx);
+  return { checked: true, overflow: elements.length > 0, elements };
+}
+
 function hasBadSplit(svg: string, width: number, height: number) {
   return [...svg.matchAll(/<polygon\b[^>]*\bpoints\s*=\s*["']([^"']+)["'][^>]*>/gi)].some((match) => {
     const nums = match[1].split(/[\s,]+/).map(Number).filter(Number.isFinite);
@@ -651,6 +746,8 @@ export function validateSvgArtifact(input: { svg: string; assetType?: "social" |
   const weakLargeSocialType = assetType === "social" && styles.some((style) => style.family === "Montserrat" && style.size >= 72 && style.weight < 700);
   const badSocialSplitComposition = assetType === "social" && styleVariant !== "contrast_cards" && hasBadSplit(input.svg, widthPx ?? brand.social.canonicalSize.widthPx, heightPx ?? brand.social.canonicalSize.heightPx);
   const onePagerValidation = appearsToBeOnePager ? validateOnePagerSvg({ svg: input.svg, mode }) : undefined;
+  const headlineTextOverflow = assetType === "social" ? checkHeadlineTextOverflow(input.svg, referenceSystem, input.assetBasePath) : { checked: false, overflow: false, elements: [] as Array<{ text: string; widthPx: number; allowedWidthPx: number }> };
+  if (headlineTextOverflow.overflow) severityPush(mode, violations, warnings, `Headline text overflows its locked reference slot: ${headlineTextOverflow.elements.map((element) => `"${element.text}" is ${element.widthPx}px, slot allows ${element.allowedWidthPx}px`).join("; ")}.`);
   if (assetType === "social") {
     const expected = brand.social.canonicalSize;
     if (widthPx !== expected.widthPx || heightPx !== expected.heightPx) severityPush(mode, violations, warnings, `SVG social dimensions are ${widthPx ?? "missing"}x${heightPx ?? "missing"}; CCC social output must be ${expected.widthPx}x${expected.heightPx}.`);
@@ -686,7 +783,7 @@ export function validateSvgArtifact(input: { svg: string; assetType?: "social" |
     for (const message of onePagerValidation.warnings) if (!warnings.includes(message)) warnings.push(`One-pager gate: ${message}`);
   }
   if (input.requiresLogo ?? true) if (!logoChecks.some((check) => check.ok)) severityPush(mode, violations, warnings, "SVG does not reference a verified official CCC logo asset.");
-  return { ok: violations.length === 0, mode, violations, warnings, widthPx, heightPx, fonts, colors, colorHarmony, illustratorCompatibility, placeholderLogo, logoRefs, logoChecks, referenceExact, guideStyleWatermark, legacyCircleWatermark, guideStyleVariant, styleVariant, referenceSystem, variation, density, validDensity, hasActionBand, hasStackedBlocks, hasPetitionMarker, hasLargeStat, hasContrastCards, hasQuotePortrait, hasQuoteAttribution, hasQuoteWatermark, hasQuoteReferencePalette, hasSeparatedQuoteZones, hasProportionalQuotePortrait, hasUncroppedQuotePortrait, hasEmbeddedQuotePortrait, hasQuoteOrangeEmphasis, badSocialSplitComposition, posterScaleHeadline, frameFillingAnton, nativeReferenceTypography, artificialTextStretch, weakLargeSocialType, appearsToBeOnePager, onePagerValidation };
+  return { ok: violations.length === 0, mode, violations, warnings, widthPx, heightPx, fonts, colors, colorHarmony, illustratorCompatibility, placeholderLogo, logoRefs, logoChecks, referenceExact, guideStyleWatermark, legacyCircleWatermark, guideStyleVariant, styleVariant, referenceSystem, variation, density, validDensity, hasActionBand, hasStackedBlocks, hasPetitionMarker, hasLargeStat, hasContrastCards, hasQuotePortrait, hasQuoteAttribution, hasQuoteWatermark, hasQuoteReferencePalette, hasSeparatedQuoteZones, hasProportionalQuotePortrait, hasUncroppedQuotePortrait, hasEmbeddedQuotePortrait, hasQuoteOrangeEmphasis, badSocialSplitComposition, posterScaleHeadline, frameFillingAnton, nativeReferenceTypography, artificialTextStretch, weakLargeSocialType, appearsToBeOnePager, onePagerValidation, textOverflow: headlineTextOverflow.overflow, textOverflowChecked: headlineTextOverflow.checked, overflowElements: headlineTextOverflow.elements };
 }
 
 function illustratorFontPolicy(includeAnton = true) {
@@ -1359,6 +1456,17 @@ function referenceOverlay(input: SocialSvgInput, variant: Exclude<SocialStyleVar
   const navy = getColor("leila");
   const mint = getColor("softMint");
   if (variant === "navy_poster") {
+    const layout = resolveHeadlineLayout("navy_poster", input.headline, input.assetBasePath);
+    if (layout) {
+      if (!layout.fits) throw new Error(layout.overflowReason ?? "headline_does_not_fit");
+      const emphasis = Math.max(0, layout.lines.findIndex((line) => /better|choice|freedom|protect|win/i.test(line.text)));
+      return `<g data-ccc-role="reference-headline">${layout.lines.map((line, index) => referenceText(line.text, line.x, line.y, "Anton", line.fontSizePx, index === emphasis ? orange : white, 400)).join("")}</g>
+        ${referenceText((input.kicker || "POLICY").toUpperCase(), 19.57, 26.59, "DM Mono", 8.7, mint)}
+        ${referenceText(brand.social.requiredFooter, 21.53, 452.02, "DM Mono", 8.7, white)}`;
+    }
+    // Packaged Anton font is unavailable at this assetBasePath: fall back to the legacy
+    // approximate wrap so the SVG can still render. missingRenderFonts validation already
+    // reports the real problem (this only happens with a custom, incomplete asset directory).
     const words = input.headline.trim().split(/\s+/).filter(Boolean).length;
     const lines = wrapDisplayWords(input.headline, 4, 5.3, Math.min(4, words));
     const emphasis = Math.max(0, lines.findIndex((line) => /better|choice|freedom|protect|win/i.test(line)));
@@ -1560,7 +1668,7 @@ function referenceLockedSocialSvg(input: SocialSvgInput) {
   svg = svg.replace(/<svg\b([^>]*)>/i, `<svg$1${rootMetadata}>`);
   svg = svg.replace(/<\/svg>\s*$/i, `${fontPolicy}${referenceOverlay(input, styleVariant)}</svg>`);
   svg = makeIllustratorSafeSvg(svg);
-  const layout = qaSocialLayout({ template: input.template, headline: input.headline, body: input.body ?? "", cta: input.cta, mode: input.mode });
+  const layout = qaSocialLayout({ template: input.template, headline: input.headline, kicker: input.kicker, body: input.body ?? "", cta: input.cta, mode: input.mode, assetBasePath: input.assetBasePath });
   const palette = styleVariant === "contrast_cards"
     ? [getColor("leila"), getColor("warmWhite"), getColor("autumnOrange"), getColor("brightTeal"), getColor("baseWhite")]
     : [getColor("leila"), getColor("autumnOrange"), getColor("warmWhite"), getColor("baseWhite"), styleVariant === "statistic_card" ? getColor("softMint") : getColor("coolMist")];
@@ -1600,7 +1708,7 @@ function createLegacySocialRenderer(input: SocialSvgInput) {
     : input.includeLogoPlaceholder && input.mode !== "final"
       ? `<g aria-label="Official CCC logo placeholder"><rect x="${x}" y="${y}" width="${logoWidth}" height="${logoHeight}" fill="none" stroke="${accent}" stroke-width="4"/></g>`
       : "";
-  const layout = qaSocialLayout({ template: input.template, headline: input.headline, body: input.body ?? "", cta: input.cta, mode: input.mode });
+  const layout = qaSocialLayout({ template: input.template, headline: input.headline, kicker: input.kicker, body: input.body ?? "", cta: input.cta, mode: input.mode, assetBasePath: input.assetBasePath });
   if (isLowerThird) {
     const lowerLines = wrapWords(input.headline, 34).slice(0, 2);
     const lowerSvg = makeIllustratorSafeSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="CCC lower third">

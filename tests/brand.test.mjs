@@ -677,6 +677,110 @@ test("layout QA escalates overflow in final mode", () => {
   assert.match(result.violations.join("\n"), /Headline exceeds/);
 });
 
+test("navy_poster headline layout is measured from real font metrics and shared by QA and rendering", () => {
+  const headline = "Energy policy should give consumers more choice";
+
+  const qa = qaSocialLayout({ template: "cta", headline, mode: "final" });
+  assert.equal(qa.styleVariant, "navy_poster");
+  assert.equal(qa.ok, true);
+  assert.deepEqual(qa.headline.lines, ["ENERGY POLICY", "SHOULD GIVE", "CONSUMERS", "MORE CHOICE"]);
+  assert.equal(qa.headline.fits, true);
+  for (const widthPx of qa.headline.lineWidthsPx) assert.ok(widthPx <= qa.headline.slotWidthPx + 2, `line width ${widthPx} exceeds slot ${qa.headline.slotWidthPx}`);
+
+  const rendered = createSocialSvg({
+    template: "cta",
+    headline,
+    includeLogoPlaceholder: true,
+    officialLogoHref: "logos/ccc-wide-orange.svg",
+    mode: "final",
+  });
+  assert.equal(rendered.validation.ok, true);
+  // QA and the renderer must resolve the exact same layout: no separate "QA wrap" and "render wrap" paths.
+  assert.deepEqual(rendered.layout.headline.lines, qa.headline.lines);
+
+  const artifact = validateSvgArtifact({ svg: rendered.svg, assetType: "social", mode: "final" });
+  assert.equal(artifact.textOverflowChecked, true);
+  assert.equal(artifact.textOverflow, false);
+  assert.deepEqual(artifact.overflowElements, []);
+});
+
+test("navy_poster headline layout fits several awkward-width phrases without overflow", () => {
+  for (const headline of [
+    "Affordable energy needs more competition",
+    "Regulators should trust consumers more",
+    "Choice",
+  ]) {
+    const qa = qaSocialLayout({ template: "cta", headline, mode: "final" });
+    assert.equal(qa.styleVariant, "navy_poster");
+    assert.equal(qa.headline.fits, true, `expected "${headline}" to fit`);
+    for (const widthPx of qa.headline.lineWidthsPx) assert.ok(widthPx <= qa.headline.slotWidthPx + 2, `"${headline}": line width ${widthPx} exceeds slot ${qa.headline.slotWidthPx}`);
+
+    const rendered = createSocialSvg({
+      template: "cta",
+      headline,
+      includeLogoPlaceholder: true,
+      officialLogoHref: "logos/ccc-wide-orange.svg",
+      mode: "final",
+    });
+    assert.equal(rendered.validation.ok, true, `expected "${headline}" to render without violations`);
+  }
+});
+
+test("navy_poster headline that cannot fit even at the minimum font size fails loudly instead of clipping", () => {
+  const headline = "Consumers deserve technology neutral energy policy that respects individual liberty";
+
+  const qa = qaSocialLayout({ template: "cta", headline, mode: "final" });
+  assert.equal(qa.ok, false);
+  assert.equal(qa.headline.fits, false);
+  assert.match(qa.violations.join("\n"), /headline_does_not_fit/);
+
+  assert.throws(
+    () => createSocialSvg({
+      template: "cta",
+      headline,
+      includeLogoPlaceholder: true,
+      officialLogoHref: "logos/ccc-wide-orange.svg",
+      mode: "final",
+    }),
+    /headline_does_not_fit/,
+  );
+});
+
+test("navy_poster rejects an unbreakable overlong single word the same way", () => {
+  const headline = "Antidisestablishmentarianismic-energy-overregulation";
+  const qa = qaSocialLayout({ template: "cta", headline, mode: "final" });
+  assert.equal(qa.headline.fits, false);
+  assert.throws(
+    () => createSocialSvg({
+      template: "cta",
+      headline,
+      includeLogoPlaceholder: true,
+      officialLogoHref: "logos/ccc-wide-orange.svg",
+      mode: "final",
+    }),
+    /headline_does_not_fit/,
+  );
+});
+
+test("validate_svg_artifact independently detects a headline that overflows its reference-1 slot", () => {
+  // A hand-crafted reference-1 SVG with an oversized headline line, exercising the validator's
+  // own overflow detection rather than relying on create_social_svg to have already caught it.
+  const overflowingSvg = `<svg xmlns="http://www.w3.org/2000/svg" data-ccc-style="guide-social" data-ccc-layout-lock="reference-exact" data-ccc-variant="navy_poster" data-ccc-reference-system="reference-1" data-ccc-variation="0" data-ccc-density="medium" data-ccc-watermark-source="packaged-reference" data-ccc-has-action-band="false" data-ccc-has-stacked-blocks="false" data-ccc-has-petition-marker="false" data-ccc-has-large-stat="false" data-ccc-has-contrast-cards="false" width="1080" height="1350" viewBox="0 0 385.85 482.31" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" data-ccc-export="illustrator-svg-1.1" data-ccc-font-policy="editable-installed">
+    <g data-ccc-role="reference-headline"><text x="19.57" y="147.7" font-family="Anton" font-weight="400" font-size="71.54" fill="#FFF7EF">CONSUMERS MORE CHOICE</text></g>
+    <text x="19.57" y="26.59" font-family="DM Mono" font-weight="400" font-size="8.7" fill="#9BD8C7">POLICY</text>
+    <text x="21.53" y="452.02" font-family="DM Mono" font-weight="400" font-size="8.7" fill="#FFF7EF">consumerchoicecenter.org</text>
+  </svg>`;
+
+  const artifact = validateSvgArtifact({ svg: overflowingSvg, assetType: "social", mode: "final" });
+  assert.equal(artifact.textOverflowChecked, true);
+  assert.equal(artifact.textOverflow, true);
+  assert.equal(artifact.overflowElements.length, 1);
+  assert.equal(artifact.overflowElements[0].text, "CONSUMERS MORE CHOICE");
+  assert.ok(artifact.overflowElements[0].widthPx > artifact.overflowElements[0].allowedWidthPx);
+  assert.equal(artifact.ok, false);
+  assert.match(artifact.violations.join("\n"), /overflows its locked reference slot/);
+});
+
 test("asset audit cross-checks manifest and expected files", () => {
   const result = auditAssets();
 
