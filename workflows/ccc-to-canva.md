@@ -45,6 +45,12 @@ Use `--review pending` or `--review failed` when appropriate. An asset-only uplo
 
 Return both the retained SVG link and the Canva design link, describe actual editability, and disclose unresolved warnings. Later Canva edits do not update the SVG automatically; create and validate a new MCP revision when a source update is requested.
 
+### Pilot findings (2026-09-22)
+
+The [first live pilot](../deliverables/canva/pilot-your-choice-our-fight/v001/pilot-results.md) confirmed that direct SVG upload and local HTML design import work. However, SVG-in-HTML became one image with substituted fonts, even with embedded font declarations. Never assume that import is faithful or produces editable text. Use a visually verified render for the artwork route, or a verified native Canva template for editable text. The imported design is not automatically associated with the configured brand kit.
+
+If the connector's save approval gate blocks a corrective edit, present the corrected preview and request explicit save approval. Preserve the draft transaction ID and record the saved design as failed/pending until commit succeeds; never mark a preview-only correction as complete.
+
 ## GitHub retention
 
 Commit the SVG, validation report and manifest together when saving a completed asset to GitHub is in scope. Commit only the intended asset directory and workflow changes, never unrelated deliverables. Check that the content is appropriate for the repository's visibility before publishing. No tokens, cookies, API keys or connector credentials belong here. A local archive is not a GitHub backup until its commit has been pushed successfully.

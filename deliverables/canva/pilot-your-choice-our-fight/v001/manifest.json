@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "slug": "pilot-your-choice-our-fight",
+  "revision": "v001",
+  "createdAt": "2026-09-22T19:35:56.882Z",
+  "source": {
+    "file": "source.svg",
+    "sha256": "216637e95e8fa5b86df9ffc38cbf7fb45165dbb3840f76131d219dfb52f01560",
+    "bytes": 11279
+  },
+  "validation": {
+    "file": "validation.json",
+    "sha256": "dceca0a9932d902e72835bb9507d864f5ad73ecbf625825d2124df14da26afe0"
+  },
+  "brandKit": {
+    "id": "kAHV8l13Gjo",
+    "name": "Consumer Choice Center 2026 MCP created",
+    "url": "https://www.canva.com/brand/kAHV8l13Gjo"
+  },
+  "canva": {
+    "status": "complete",
+    "history": [
+      {
+        "recordedAt": "2026-09-22T19:43:55.083Z",
+        "designUrl": null,
+        "assetId": "MAHV8zoYwFo",
+        "review": "pending",
+        "notes": "Original validated SVG successfully uploaded through Canva plugin."
+      },
+      {
+        "recordedAt": "2026-09-22T19:44:40.263Z",
+        "designUrl": "https://www.canva.com/design/DAHV8yEMy1U/edit",
+        "assetId": "MAHV88aqAZg",
+        "review": "failed",
+        "notes": "Initial SVG-in-HTML import created a single full-page image but substituted serif fonts. Corrected image MAHV860FHPA is prepared in transaction 6355095790562609719; commit blocked pending explicit post-preview approval."
+      },
+      {
+        "recordedAt": "2026-09-22T19:45:08.451Z",
+        "designUrl": "https://www.canva.com/design/DAHV8yEMy1U/edit",
+        "assetId": "MAHV860FHPA",
+        "review": "passed",
+        "notes": "Corrected full-page image visually verified: Anton, DM Mono, logo, palette, watermark and footer; no clipping. User approved saving and Canva confirmed commit. Canva text is flattened; source.svg remains editable."
+      }
+    ]
+  }
+}
