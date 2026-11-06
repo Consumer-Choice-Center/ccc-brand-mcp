@@ -11,6 +11,20 @@ export type FontCheck = { input: string; family?: string; weight?: string; ok: b
 type LogoCheck = { input?: string; ok: boolean; approvedPath?: string; exists?: boolean; message?: string };
 type LogoSurface = "dark" | "orange" | "light";
 export type SocialStyleVariant = "auto" | "navy_poster" | "petition_push" | "orange_alert" | "statistic_card" | "contrast_cards" | "quote_post";
+export type SocialSelectionMode = "auto" | "diverse";
+export type ConcreteSocialStyleVariant = Exclude<SocialStyleVariant, "auto">;
+export type SocialSelectionDecision = {
+  styleVariant: ConcreteSocialStyleVariant;
+  selectionMode: SocialSelectionMode;
+  profile: string;
+  eligibleVariants: ConcreteSocialStyleVariant[];
+  weights: Array<{
+    styleVariant: ConcreteSocialStyleVariant;
+    baseWeight: number;
+    effectiveWeight: number;
+  }>;
+  selectionReason: string;
+};
 export const onePagerTemplateIds = ["material_cost_chain", "access_barriers"] as const;
 export type OnePagerTemplateId = (typeof onePagerTemplateIds)[number];
 export type OnePagerTemplateSelection = "auto" | OnePagerTemplateId;
@@ -162,7 +176,19 @@ function analyzeCopy(text: string | undefined, maxChars: number, maxLines: numbe
   return { lines: allLines.slice(0, maxLines), allLineCount: allLines.length, omittedLines: allLines.slice(maxLines), maxChars, maxLines, longWords, overLimit: allLines.length > maxLines || longWords.length > 0 };
 }
 
-export function qaSocialLayout(input: { template: keyof typeof socialTemplates; headline: string; kicker?: string; body?: string; cta?: string; mode: ValidationMode; assetBasePath?: string }) {
+export function qaSocialLayout(input: {
+  template: keyof typeof socialTemplates;
+  headline: string;
+  kicker?: string;
+  body?: string;
+  cta?: string;
+  mode: ValidationMode;
+  assetBasePath?: string;
+  styleVariant?: SocialStyleVariant;
+  selectionMode?: SocialSelectionMode;
+  recentVariants?: ConcreteSocialStyleVariant[];
+  diversitySeed?: string;
+}) {
   const rules = brand.visualSystem.socialPosts;
   const isLowerThird = input.template === "lower_third";
   const isQuote = input.template === "quote";
@@ -171,7 +197,9 @@ export function qaSocialLayout(input: { template: keyof typeof socialTemplates; 
 
   // The style variant create_social_svg would auto-select for this same input, so QA can
   // measure a headline against the exact reference slot the renderer will actually use.
-  const styleVariant = isLowerThird ? undefined : selectSocialStyleVariant(input);
+  const styleVariant = isLowerThird
+    ? undefined
+    : selectSocialStyleDecision({ ...input, selectionMode: input.selectionMode ?? "auto" }).styleVariant;
   const measuredLayout = styleVariant ? resolveHeadlineLayout(styleVariant, input.headline, input.assetBasePath) : undefined;
 
   const headline = measuredLayout
@@ -674,8 +702,16 @@ export function validateSvgArtifact(input: { svg: string; assetType?: "social" |
   const colors = svgColors(input.svg);
   for (const color of colors) if (!resolveColor(color)) violations.push(`SVG color "${color}" is not in the CCC 2026 brand palette.`);
   const colorHarmony = validateColorHarmony(colors, mode);
-  if (referenceExact && colorHarmony.uniqueColors.length <= 6) {
-    colorHarmony.violations = colorHarmony.violations.filter((message) => !message.startsWith("Color system is overloaded:"));
+  const declaredStyleVariant = input.svg.match(/data-ccc-variant=["'](navy_poster|petition_push|orange_alert|statistic_card|contrast_cards|quote_post)["']/i)?.[1];
+  const lockedContrastReference = referenceExact
+    && declaredStyleVariant === "contrast_cards"
+    && /data-ccc-reference-system=["']reference-4["']/i.test(input.svg);
+  if ((referenceExact && colorHarmony.uniqueColors.length <= 6) || (lockedContrastReference && colorHarmony.uniqueColors.length <= 7)) {
+    colorHarmony.violations = colorHarmony.violations.filter((message) => {
+      if (message.startsWith("Color system is overloaded:")) return false;
+      if (lockedContrastReference && message.startsWith("Too many tertiary accent colors are used:")) return false;
+      return true;
+    });
     colorHarmony.ok = colorHarmony.violations.length === 0;
   }
   violations.push(...colorHarmony.violations);
@@ -689,7 +725,7 @@ export function validateSvgArtifact(input: { svg: string; assetType?: "social" |
   );
   const guideStyleWatermark = (referenceExact && /data-ccc-watermark-source=["']packaged-reference["']/i.test(input.svg)) || (/data-ccc-watermark=["']gradient-ccc-mark["']/i.test(input.svg) && /data-ccc-watermark-gradient=["']semi-transparent["']/i.test(input.svg) && /href=["']#ccc-watermark-mark["']/i.test(input.svg));
   const legacyCircleWatermark = /data-ccc-watermark=["']gradient-ring["']|CCC gradient ring watermark/i.test(input.svg);
-  const styleVariant = input.svg.match(/data-ccc-variant=["'](navy_poster|petition_push|orange_alert|statistic_card|contrast_cards|quote_post)["']/i)?.[1];
+  const styleVariant = declaredStyleVariant;
   const guideStyleVariant = Boolean(styleVariant);
   const referenceSystem = input.svg.match(/data-ccc-reference-system=["'](reference-[1-5])["']/i)?.[1];
   const variation = Number(input.svg.match(/data-ccc-variation=["']([0-2])["']/i)?.[1]);
@@ -1281,9 +1317,41 @@ function isContrastAsk(input: { headline: string; kicker?: string; body?: string
   return /\b(vs\.?|versus|bad policy|good policy|compare|comparison|ban first|no mandates|yes to choice)\b/i.test(copy);
 }
 
-function selectSocialStyleVariant(input: { template: keyof typeof socialTemplates; headline: string; kicker?: string; body?: string; cta?: string }, requested?: SocialStyleVariant): Exclude<SocialStyleVariant, "auto"> {
-  if (requested && requested !== "auto") return requested;
+type SocialRoutingInput = {
+  template: keyof typeof socialTemplates;
+  headline: string;
+  kicker?: string;
+  body?: string;
+  cta?: string;
+  styleVariant?: SocialStyleVariant;
+  selectionMode?: SocialSelectionMode;
+  recentVariants?: ConcreteSocialStyleVariant[];
+  diversitySeed?: string;
+};
+
+const fallbackVariantSelection = {
+  defaultMode: "diverse",
+  repeatPenalty: 0.15,
+  frequentPenalty: 0.4,
+  profiles: {
+    quote: { quote_post: 100 },
+    lower_third: { navy_poster: 100 },
+    statistic: { statistic_card: 85, navy_poster: 15 },
+    contrast: { contrast_cards: 85, navy_poster: 15 },
+    petition: { petition_push: 60, orange_alert: 30, navy_poster: 10 },
+    policy_alert: { orange_alert: 60, navy_poster: 25, petition_push: 15 },
+    general: { navy_poster: 65, orange_alert: 35 },
+    general_cta: { navy_poster: 55, orange_alert: 30, petition_push: 15 },
+  },
+};
+
+function socialSelectionConfig() {
+  return brand.visualSystem.socialPosts.variantSelection ?? fallbackVariantSelection;
+}
+
+function strictSocialVariant(input: SocialRoutingInput): ConcreteSocialStyleVariant {
   if (input.template === "quote") return "quote_post";
+  if (input.template === "lower_third") return "navy_poster";
   if (input.template === "statistic") return "statistic_card";
   if (isContrastAsk(input)) return "contrast_cards";
   if (isPetitionAsk(input)) return "petition_push";
@@ -1291,13 +1359,112 @@ function selectSocialStyleVariant(input: { template: keyof typeof socialTemplate
   return "navy_poster";
 }
 
-function stableVariation(value: string) {
+function socialSelectionProfile(input: SocialRoutingInput) {
+  if (input.template === "quote") return "quote";
+  if (input.template === "lower_third") return "lower_third";
+  if (input.template === "statistic") return "statistic";
+  if (isContrastAsk(input)) return "contrast";
+  if (isPetitionAsk(input)) return "petition";
+  if (input.template === "policy_alert") return "policy_alert";
+  return input.cta?.trim() ? "general_cta" : "general";
+}
+
+function stableHash(value: string) {
   let hash = 2166136261;
   for (let index = 0; index < value.length; index += 1) {
     hash ^= value.charCodeAt(index);
     hash = Math.imul(hash, 16777619);
   }
-  return Math.abs(hash) % 3;
+  return hash >>> 0;
+}
+
+export function selectSocialStyleDecision(input: SocialRoutingInput): SocialSelectionDecision {
+  const requested = input.styleVariant ?? "auto";
+  const config = socialSelectionConfig();
+  const selectionMode: SocialSelectionMode = input.selectionMode
+    ?? (config.defaultMode === "diverse" ? "diverse" : "auto");
+  if (requested !== "auto") {
+    return {
+      styleVariant: requested,
+      selectionMode,
+      profile: "explicit",
+      eligibleVariants: [requested],
+      weights: [{ styleVariant: requested, baseWeight: 100, effectiveWeight: 100 }],
+      selectionReason: `Explicit styleVariant override selected ${requested}.`,
+    };
+  }
+
+  const strictVariant = strictSocialVariant(input);
+  const profile = socialSelectionProfile(input);
+  if (selectionMode === "auto") {
+    return {
+      styleVariant: strictVariant,
+      selectionMode,
+      profile,
+      eligibleVariants: [strictVariant],
+      weights: [{ styleVariant: strictVariant, baseWeight: 100, effectiveWeight: 100 }],
+      selectionReason: `Strict semantic routing selected ${strictVariant} for the ${profile} profile.`,
+    };
+  }
+
+  const configuredProfile = config.profiles?.[profile] ?? fallbackVariantSelection.profiles.general;
+  const recentVariants = (input.recentVariants ?? []).slice(-5);
+  const latestVariant = recentVariants.at(-1);
+  const recentWindow = recentVariants.slice(-3);
+  const weights = Object.entries(configuredProfile)
+    .map(([styleVariant, configuredWeight]) => {
+      const variant = styleVariant as ConcreteSocialStyleVariant;
+      const baseWeight = Math.max(0, Number(configuredWeight) || 0);
+      let effectiveWeight = baseWeight;
+      if (variant === latestVariant) effectiveWeight *= Number(config.repeatPenalty ?? fallbackVariantSelection.repeatPenalty);
+      if (recentWindow.filter((recent) => recent === variant).length >= 2) {
+        effectiveWeight *= Number(config.frequentPenalty ?? fallbackVariantSelection.frequentPenalty);
+      }
+      return { styleVariant: variant, baseWeight, effectiveWeight };
+    })
+    .filter((entry) => entry.effectiveWeight > 0);
+  const totalWeight = weights.reduce((sum, entry) => sum + entry.effectiveWeight, 0);
+  if (!weights.length || totalWeight <= 0) {
+    return {
+      styleVariant: strictVariant,
+      selectionMode,
+      profile,
+      eligibleVariants: [strictVariant],
+      weights: [{ styleVariant: strictVariant, baseWeight: 100, effectiveWeight: 100 }],
+      selectionReason: `Diverse routing had no usable weights; strict fallback selected ${strictVariant}.`,
+    };
+  }
+
+  const selectionInput = [
+    input.diversitySeed ?? "ccc-social-diverse",
+    input.template,
+    input.headline,
+    input.kicker,
+    input.body,
+    input.cta,
+  ].filter(Boolean).join("|");
+  let cursor = (stableHash(selectionInput) / 0x1_0000_0000) * totalWeight;
+  let chosen = weights.at(-1)!;
+  for (const entry of weights) {
+    cursor -= entry.effectiveWeight;
+    if (cursor < 0) {
+      chosen = entry;
+      break;
+    }
+  }
+  const penaltyApplied = chosen.effectiveWeight < chosen.baseWeight;
+  return {
+    styleVariant: chosen.styleVariant,
+    selectionMode,
+    profile,
+    eligibleVariants: weights.map((entry) => entry.styleVariant),
+    weights,
+    selectionReason: `Weighted ${profile} routing selected ${chosen.styleVariant}${penaltyApplied ? " after recent-use penalties" : ""}.`,
+  };
+}
+
+function stableVariation(value: string) {
+  return stableHash(value) % 3;
 }
 
 function displayUnits(value: string) {
@@ -1391,6 +1558,9 @@ type SocialSvgInput = {
   assetBasePath?: string;
   mode: ValidationMode;
   styleVariant?: SocialStyleVariant;
+  selectionMode?: SocialSelectionMode;
+  recentVariants?: ConcreteSocialStyleVariant[];
+  diversitySeed?: string;
 };
 
 function normalizeReferencePalette(svg: string) {
@@ -1649,10 +1819,11 @@ export function createQuotePostSvg(input: {
 }
 
 function referenceLockedSocialSvg(input: SocialSvgInput) {
-  const styleVariant = selectSocialStyleVariant(input, input.styleVariant);
+  const selection = selectSocialStyleDecision(input);
+  const styleVariant = selection.styleVariant;
   if (styleVariant === "quote_post") {
     if (!input.person) throw new Error(`Quote posts require a person. Choose one of: ${quotePersonIds.join(", ")}.`);
-    return createQuotePostSvg({ quote: input.headline, person: input.person, emphasis: input.emphasis, officialLogoHref: input.officialLogoHref, assetBasePath: input.assetBasePath, mode: input.mode });
+    return { ...createQuotePostSvg({ quote: input.headline, person: input.person, emphasis: input.emphasis, officialLogoHref: input.officialLogoHref, assetBasePath: input.assetBasePath, mode: input.mode }), selection };
   }
   const referenceSystem = referenceForVariant(styleVariant);
   const referenceNumber = Number(referenceSystem.slice(-1));
@@ -1680,14 +1851,15 @@ function referenceLockedSocialSvg(input: SocialSvgInput) {
   validation.violations.push(...artifactValidation.violations);
   validation.warnings.push(...artifactValidation.warnings);
   validation.ok = validation.violations.length === 0;
-  return { validation, layout, artifactValidation, selectedLogoHref, styleVariant, variation: 0, referenceSystem, layoutLock: "reference-exact", svg };
+  return { validation, layout, artifactValidation, selectedLogoHref, styleVariant, variation: 0, referenceSystem, layoutLock: "reference-exact", selection, svg };
 }
 
 function createLegacySocialRenderer(input: SocialSvgInput) {
   const isLowerThird = input.template === "lower_third";
   const width = isLowerThird ? brand.visualSystem.videoGraphics.horizontalSize.widthPx : brand.social.canonicalSize.widthPx;
   const height = isLowerThird ? brand.visualSystem.videoGraphics.horizontalSize.heightPx : brand.social.canonicalSize.heightPx;
-  const styleVariant = selectSocialStyleVariant(input, input.styleVariant);
+  const selection = selectSocialStyleDecision(input);
+  const styleVariant = selection.styleVariant;
   const variation = input.variation === undefined ? stableVariation([input.headline, input.kicker, input.body, input.cta].filter(Boolean).join("|")) : Math.max(0, Math.min(2, Math.trunc(input.variation)));
   const referenceSystem = referenceForVariant(styleVariant);
   const isAlert = styleVariant === "orange_alert" || styleVariant === "petition_push";
@@ -1728,7 +1900,7 @@ function createLegacySocialRenderer(input: SocialSvgInput) {
     validation.violations.push(...artifactValidation.violations);
     validation.warnings.push(...artifactValidation.warnings);
     validation.ok = validation.violations.length === 0;
-    return { validation, layout, artifactValidation, selectedLogoHref, styleVariant, variation, referenceSystem, svg: lowerSvg };
+    return { validation, layout, artifactValidation, selectedLogoHref, styleVariant, variation, referenceSystem, selection, svg: lowerSvg };
   }
 
   const headlineWordCount = input.headline.trim().split(/\s+/).filter(Boolean).length;
@@ -1876,7 +2048,7 @@ function createLegacySocialRenderer(input: SocialSvgInput) {
   validation.violations.push(...artifactValidation.violations);
   validation.warnings.push(...artifactValidation.warnings);
   validation.ok = validation.violations.length === 0;
-  return { validation, layout, artifactValidation, selectedLogoHref, styleVariant, variation, referenceSystem, svg };
+  return { validation, layout, artifactValidation, selectedLogoHref, styleVariant, variation, referenceSystem, selection, svg };
 }
 
 export function createSocialSvg(input: SocialSvgInput) {

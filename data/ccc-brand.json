@@ -250,6 +250,47 @@
           "composition": "Reference 5 system: exact supplied quote template with a deep-night field, official top-left logo, cropped CCC mark, protected Anton quote and Montserrat Bold attribution zone, mandatory Autumn Orange emphasis, and one fully embedded approved portrait contained without cropping and scaled proportionally to quote length below the text zone."
         }
       ],
+      "variantSelection": {
+        "defaultMode": "diverse",
+        "repeatPenalty": 0.15,
+        "frequentPenalty": 0.4,
+        "recentWindow": 3,
+        "profiles": {
+          "quote": {
+            "quote_post": 100
+          },
+          "lower_third": {
+            "navy_poster": 100
+          },
+          "statistic": {
+            "statistic_card": 85,
+            "navy_poster": 15
+          },
+          "contrast": {
+            "contrast_cards": 85,
+            "navy_poster": 15
+          },
+          "petition": {
+            "petition_push": 60,
+            "orange_alert": 30,
+            "navy_poster": 10
+          },
+          "policy_alert": {
+            "orange_alert": 60,
+            "navy_poster": 25,
+            "petition_push": 15
+          },
+          "general": {
+            "navy_poster": 65,
+            "orange_alert": 35
+          },
+          "general_cta": {
+            "navy_poster": 55,
+            "orange_alert": 30,
+            "petition_push": 15
+          }
+        }
+      },
       "referenceAssets": [
         "post-references/ccc-post-reference-1.svg",
         "post-references/ccc-post-reference-2.svg",
@@ -731,6 +772,7 @@
     "For social posts, follow the mapped reference system with its native display font, small issue label, official logo, footer URL, real reference icon paths, and the cropped nested-C CCC mark filled with a subtle transparent brand gradient.",
     "For petition, policymaker, lawmaker, mandate, and direct advocacy asks, default to petition_push or orange_alert rather than a generic navy poster.",
     "Vary social post layouts across navy poster, petition push, orange alert, statistic card, and compact contrast-card variants based on the message.",
+    "For campaign series, use diverse social selection with the configured semantic profile weights, deterministic diversity seed, and recent-variant repetition penalties; an explicitly requested style variant always overrides weighted selection.",
     "Treat the packaged SVG post references as locked layout contracts: preserve coordinates, native display fonts, line rhythm, crop behavior, CCC mark geometry, icon paths, CTA placement, and logo usage while replacing the wording.",
     "For one-pagers, call create_one_pager and edit the returned materialized local workingFile.outputPath in place; never retrieve the complete shell or populated reference as SVG text through chat. Preserve at least 90% of its measured vector geometry and replace only fitted copy plus the contextual object illustration.",
     "Never validate an 1186.51x1535.49 one-pager only as a generic SVG artifact or by transferring its markup through chat; its local file path must pass validate_one_pager_file, including source-template geometry retention and Illustrator compatibility.",

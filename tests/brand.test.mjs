@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import test from "node:test";
 import {
   auditAssets,
@@ -24,6 +24,7 @@ import {
   quotePersonIds,
   resolveQuotePerson,
   resolveColor,
+  selectSocialStyleDecision,
   validateIllustratorSvg,
   validateOnePagerFile,
   validateSvgArtifact,
@@ -143,6 +144,7 @@ test("social prompts and SVGs use 1080x1350", () => {
 test("social SVG generation varies guide style variants", () => {
   const policy = createSocialSvg({
     template: "policy_alert",
+    selectionMode: "auto",
     headline: "Choice is not optional",
     body: "Protect consumer choice",
     includeLogoPlaceholder: true,
@@ -150,6 +152,7 @@ test("social SVG generation varies guide style variants", () => {
   });
   const stat = createSocialSvg({
     template: "statistic",
+    selectionMode: "auto",
     headline: "72% support choice",
     body: "Policy should target harm",
     includeLogoPlaceholder: true,
@@ -187,6 +190,64 @@ test("social SVG generation varies guide style variants", () => {
   assert.equal(policy.validation.ok, true);
   assert.equal(stat.validation.ok, true);
   assert.equal(contrast.validation.ok, true);
+  assert.equal(createSocialSvg({
+    template: "cta",
+    styleVariant: "contrast_cards",
+    headline: "BAD POLICY VS GOOD POLICY",
+    comparisonLeft: "Ban first. Ask questions later.",
+    comparisonRight: "Target risk. Preserve consumer choice.",
+    assetBasePath: resolve(process.cwd(), "assets"),
+    mode: "final",
+  }).artifactValidation.ok, true);
+});
+
+test("diverse social routing uses weighted profiles with deterministic repetition penalties", () => {
+  const base = {
+    template: "policy_alert",
+    headline: "Smarter rules protect consumer choice",
+    body: "Target harm while preserving useful options.",
+    styleVariant: "auto",
+    selectionMode: "diverse",
+  };
+  const first = selectSocialStyleDecision({ ...base, diversitySeed: "campaign-a" });
+  const repeated = selectSocialStyleDecision({ ...base, diversitySeed: "campaign-a" });
+  assert.deepEqual(repeated, first);
+  assert.deepEqual(first.eligibleVariants.sort(), ["navy_poster", "orange_alert", "petition_push"].sort());
+
+  const configuredDefault = selectSocialStyleDecision({
+    ...base,
+    selectionMode: undefined,
+    diversitySeed: "configured-default",
+  });
+  assert.equal(configuredDefault.selectionMode, "diverse");
+
+  const variants = new Set(
+    Array.from({ length: 64 }, (_, index) => selectSocialStyleDecision({
+      ...base,
+      diversitySeed: `campaign-${index}`,
+    }).styleVariant),
+  );
+  assert.ok(variants.size >= 2);
+
+  const penalized = selectSocialStyleDecision({
+    ...base,
+    recentVariants: ["orange_alert", "navy_poster", "navy_poster"],
+    diversitySeed: "campaign-a",
+  });
+  const navyWeight = penalized.weights.find((entry) => entry.styleVariant === "navy_poster");
+  assert.ok(navyWeight.effectiveWeight < navyWeight.baseWeight);
+
+  const strict = selectSocialStyleDecision({ ...base, selectionMode: "auto" });
+  assert.equal(strict.styleVariant, "petition_push");
+  assert.equal(strict.eligibleVariants.length, 1);
+
+  const explicit = selectSocialStyleDecision({
+    ...base,
+    styleVariant: "contrast_cards",
+    recentVariants: ["contrast_cards"],
+  });
+  assert.equal(explicit.styleVariant, "contrast_cards");
+  assert.equal(explicit.profile, "explicit");
 });
 
 test("post reference SVGs are packaged as MCP layout contracts", () => {
@@ -689,6 +750,7 @@ test("navy_poster headline layout is measured from real font metrics and shared 
 
   const rendered = createSocialSvg({
     template: "cta",
+    selectionMode: "auto",
     headline,
     includeLogoPlaceholder: true,
     officialLogoHref: "logos/ccc-wide-orange.svg",

@@ -146,8 +146,8 @@ Use SSH keys, host-key verification, and a restricted server account. Do not exp
 Build the reproducible Node 22 image:
 
 ```bash
-docker build -t ccc-brand-mcp:0.8.1 .
-docker run --rm -i -v ccc-brand-output:/app/deliverables ccc-brand-mcp:0.8.1
+docker build -t ccc-brand-mcp:0.9.0 .
+docker run --rm -i -v ccc-brand-output:/app/deliverables ccc-brand-mcp:0.9.0
 ```
 
 The `-i` flag is required for MCP stdio. Keep the output volume so generated deliverables survive container removal. A remote client can use the same `ssh` configuration pattern with the `docker run --rm -i ...` command as the remote command.
@@ -177,7 +177,7 @@ Deployment is manual: `git pull` and rebuild on the server. GitHub only runs CI 
 
 Returns the version of the MCP process that answered the request, its startup time, Node runtime, workspace/output paths, enabled capabilities, spelling dictionary versions, and a compact asset-health report. After pulling or rebuilding an update, call this tool from a new chat to verify that the client is not still connected to an older process.
 
-Expected version for this release: `0.8.1`.
+Expected version for this release: `0.9.0`.
 
 ### `get_brand_guidelines`
 
@@ -290,7 +290,9 @@ The SVG uses approved colors, editable installed CCC fonts, inline official logo
 - `contrast_cards`
 - `quote_post`
 
-Use `auto` unless you need a specific reference composition. `auto` routes quotes to `quote_post`, comparisons to `contrast_cards`, petition/policymaker/lawmaker/mandate asks to `petition_push`, statistics to `statistic_card`, policy alerts to `orange_alert`, and general posts to `navy_poster`.
+An explicit `styleVariant` always wins. With `styleVariant: "auto"`, `selectionMode: "auto"` preserves the strict semantic router, while the default `selectionMode: "diverse"` chooses deterministically from semantically eligible variants using the tunable weights in `data/ccc-brand.json`. Pass up to five `recentVariants` (oldest first) to penalize repetition, and optionally pass a stable `diversitySeed` such as a campaign id so the same copy and seed remain reproducible. The response includes the selected profile, eligible variants, effective weights, and a human-readable selection reason.
+
+The default diverse weights keep quote posts locked to `quote_post`, strongly favor `statistic_card` for statistics and `contrast_cards` for comparisons, and distribute advocacy/general policy content across `navy_poster`, `petition_push`, and `orange_alert`. A variant used for the immediately previous post receives a `0.15` multiplier; a variant used at least twice in the last three posts receives an additional `0.4` multiplier.
 
 The reference mapping is fixed: `navy_poster` uses reference 1, `statistic_card` uses reference 2, `petition_push` and `orange_alert` use reference 3, `contrast_cards` uses reference 4, and `quote_post` uses the supplied reference-5 quote template. Quote posts preserve that SVG's exact 1080x1350 dimensions, `#15192E` background, visible `#22274E` cropped CCC watermark, logo geometry, Anton sizes, and 100/82/68px line rhythm. Copy stays in the left reference column while each portrait uses a verified person-specific bottom-right scale; portraits are contained in full with `xMaxYMax meet`, embedded as base64 `data:image` URIs, and paired with at least one Autumn Orange quote emphasis. Reference-locked outputs preserve variation 0 geometry; select another `styleVariant` for a genuinely different composition. `leadIn` supplies the two-line reference-3 prompt above the main headline, while `comparisonLeft` and `comparisonRight` supply the two positions in `contrast_cards`. For `template: "quote"`, provide `person` and place the quote in `headline`.
 
