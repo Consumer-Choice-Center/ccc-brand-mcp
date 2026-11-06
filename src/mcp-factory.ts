@@ -174,6 +174,7 @@ server.resource("ccc-social-templates", "brand://ccc/social-templates", async (u
         requiredFooter: brand.social.requiredFooter,
         templates: socialTemplates,
         styleVariants: socialStyleVariants,
+        variantSelection: brand.visualSystem.socialPosts.variantSelection,
         postReferences: postReferencePaths,
       }),
     },
@@ -289,6 +290,7 @@ server.tool(
             "brand-guidelines",
             "spelling-correction-us-uk",
             "reference-locked-social-svg",
+            "weighted-diverse-social-routing",
             "quote-post-svg",
             ...(mode === "stdio" ? ["one-pager-materialization", "one-pager-file-validation"] : []),
             "one-pager-svg-validation",
@@ -524,10 +526,13 @@ server.tool(
 
 server.tool(
   "create_social_svg",
-  "Correct and visibly report spelling issues in all supplied copy, then generate an Illustrator-safe SVG 1.1 CCC artwork from the reference-locked social templates using only corrected text. This is the only supported social-post renderer: never recreate its SVG through a legacy or freeform generator. Outputs use editable packaged CCC fonts, native unscaled headline glyphs, inline vector logos, and xlink:href for embedded rasters. Any PNG preview must be rendered with the packaged files in assets/fonts; never accept a system-font fallback preview. For template=quote, provide person and put the quote in headline; the generator uses reference 5 with a non-overlapping, uncropped, fully embedded approved portrait, verified attribution, and mandatory orange emphasis.",
+  "Correct and visibly report spelling issues in all supplied copy, then generate an Illustrator-safe SVG 1.1 CCC artwork from the reference-locked social templates using only corrected text. This is the only supported social-post renderer: never recreate its SVG through a legacy or freeform generator. Diverse mode performs deterministic weighted selection across semantically eligible templates and penalizes recently used variants; an explicit styleVariant always wins. Outputs use editable packaged CCC fonts, native unscaled headline glyphs, inline official logo geometry, and xlink:href for embedded rasters. Any PNG preview must be rendered with the packaged files in assets/fonts; never accept a system-font fallback preview. For template=quote, provide person and put the quote in headline; the generator uses reference 5 with a non-overlapping, uncropped, fully embedded approved portrait, verified attribution, and mandatory orange emphasis.",
   {
     template: z.enum(["policy_alert", "statistic", "quote", "cta", "lower_third"]).default("policy_alert"),
-    styleVariant: z.enum(["auto", "navy_poster", "petition_push", "orange_alert", "statistic_card", "contrast_cards", "quote_post"]).default("auto").describe("Optional CCC guide variant. auto maps quote posts to quote_post, petition/lawmaker asks to petition_push, policy alerts to orange_alert, statistics to statistic_card, and most other posts to navy_poster."),
+    styleVariant: z.enum(["auto", "navy_poster", "petition_push", "orange_alert", "statistic_card", "contrast_cards", "quote_post"]).default("auto").describe("Optional CCC guide variant. An explicit variant overrides routing. auto lets selectionMode choose among semantically eligible reference systems."),
+    selectionMode: z.enum(["auto", "diverse"]).default("diverse").describe("Use diverse for weighted, repetition-aware template selection. Use auto for the original strict semantic mapping."),
+    recentVariants: z.array(z.enum(["navy_poster", "petition_push", "orange_alert", "statistic_card", "contrast_cards", "quote_post"])).max(5).default([]).describe("Most recently used social variants, oldest first. The last item receives the strongest repetition penalty."),
+    diversitySeed: z.string().max(120).optional().describe("Optional campaign or batch seed. The same copy and seed produce the same weighted selection for reproducible output."),
     headline: z.string().min(1).max(150),
     leadIn: z.string().max(60).optional().describe("Optional reference-3 lead-in above the main headline, for example 'TELL YOUR LAWMAKERS:'. Omit to use that reference-locked default."),
     kicker: z.string().max(40).optional(),
