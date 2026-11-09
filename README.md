@@ -11,6 +11,12 @@ It exposes the CCC 2026 brand guide as machine-readable resources and tools so a
 - generate strict reference contracts for CCC policy one-pagers with contextual object illustrations
 - detect spelling errors in generation copy, show the corrections to the user, and render only corrected text
 
+## Canva workflow and retained SVGs
+
+The assistant workflow in [workflows/ccc-to-canva.md](workflows/ccc-to-canva.md) combines this MCP with an authenticated Canva connector. It selects **Consumer Choice Center 2026 MCP created**, retains validated SVG masters under `deliverables/canva/`, and records Canva handoff history alongside each revision. Configuration lives in [workflows/canva.json](workflows/canva.json); reusable Canva template IDs must be registered after verification. This is an assistant-run workflow, not automatic server-to-Canva synchronization.
+
+Use `node scripts/canva-artifact.mjs archive --slug NAME --svg FILE --report FILE` to preserve a validated source, then the `link` command documented in the workflow to record the Canva result. Credentials remain in the MCP client, outside this repository.
+
 ## Brand Source
 
 The initial rules were extracted from `CCC_Brand_Guide_2026_5.pdf`:

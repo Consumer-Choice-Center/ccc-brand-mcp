@@ -1,0 +1,92 @@
+{
+  "ok": true,
+  "mode": "final",
+  "violations": [],
+  "warnings": [],
+  "widthPx": 1080,
+  "heightPx": 1350,
+  "fonts": [
+    "Anton",
+    "DM Mono"
+  ],
+  "colors": [
+    "#6F789B",
+    "#FFF7EF",
+    "#E95C1F",
+    "#9BD8C7",
+    "#22264E"
+  ],
+  "colorHarmony": {
+    "ok": true,
+    "violations": [],
+    "warnings": [],
+    "uniqueColors": [
+      "#6F789B",
+      "#FFF7EF",
+      "#E95C1F",
+      "#9BD8C7",
+      "#22264E"
+    ],
+    "tertiaryColors": [
+      "#9BD8C7"
+    ]
+  },
+  "illustratorCompatibility": {
+    "ok": true,
+    "mode": "final",
+    "violations": [],
+    "warnings": [],
+    "isStandaloneSvg": true,
+    "hasSvg11": true,
+    "hasXlinkNamespace": true,
+    "hasExportContract": true,
+    "hasEmbeddedWebFonts": false,
+    "imageCount": 0,
+    "svg2ImageHrefs": 0,
+    "nonEmbeddedImages": 0,
+    "embeddedSvgImages": 0,
+    "liveFilters": false
+  },
+  "placeholderLogo": false,
+  "logoRefs": [
+    "logos/ccc-wide-orange.svg"
+  ],
+  "logoChecks": [
+    {
+      "input": "logos/ccc-wide-orange.svg",
+      "ok": true,
+      "approvedPath": "logos/ccc-wide-orange.svg",
+      "exists": true
+    }
+  ],
+  "referenceExact": true,
+  "guideStyleWatermark": true,
+  "legacyCircleWatermark": false,
+  "guideStyleVariant": true,
+  "styleVariant": "navy_poster",
+  "referenceSystem": "reference-1",
+  "variation": 0,
+  "density": "medium",
+  "validDensity": true,
+  "hasActionBand": false,
+  "hasStackedBlocks": false,
+  "hasPetitionMarker": false,
+  "hasLargeStat": false,
+  "hasContrastCards": false,
+  "hasQuotePortrait": false,
+  "hasQuoteAttribution": false,
+  "hasQuoteWatermark": false,
+  "hasQuoteReferencePalette": false,
+  "hasSeparatedQuoteZones": false,
+  "hasProportionalQuotePortrait": false,
+  "hasUncroppedQuotePortrait": false,
+  "hasEmbeddedQuotePortrait": false,
+  "hasQuoteOrangeEmphasis": false,
+  "badSocialSplitComposition": false,
+  "posterScaleHeadline": true,
+  "frameFillingAnton": true,
+  "nativeReferenceTypography": true,
+  "artificialTextStretch": false,
+  "weakLargeSocialType": false,
+  "appearsToBeOnePager": false
+}
